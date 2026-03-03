@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SmartTeacher - Modul Ajar</title>
+
+<!-- jsPDF -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+
+<style>
+:root{
+  --hitam:#000;
+  --putih:#fff;
+  --biru:#1565c0;
+  --emas:#d4af37;
+  --hijau:#0f0;
+  --merah:#f00;
+}
+body{
+  margin:0;
+  font-family:Arial,sans-serif;
+  background:var(--hitam);
+  color:var(--putih);
+}
+.header-utama{
+  background:var(--hitam);
+  padding:10px;
+  text-align:center;
+  border-bottom:2px solid var(--emas);
+}
+.header-utama h1{
+  margin:0;
+  color:var(--emas);
+  font-size:18px;
+}
+.header-utama #heloUser{
+  font-size:14px;
+  color:#00ffdd;
+  margin-top:2px;
+}
+.status-bar{
+  font-size:12px;
+  margin-top:2px;
+  display:flex;
+  justify-content:center;
+  gap:10px;
+}
+.status-online{font-weight:bold;color:var(--hijau);}
+.container{padding:10px;max-width:1000px;margin:auto;}
+.row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;}
+.row input,.row select,.row textarea{flex:1;padding:6px;background:#111;color:var(--putih);border:1px solid var(--emas);border-radius:4px;font-size:13px;}
+textarea{min-height:60px;}
+.btn-row{display:flex;gap:6px;flex-wrap:wrap;position:sticky;bottom:0;background:#111;padding:10px;border-top:2px solid var(--emas);}
+button{flex:1;padding:6px;font-size:13px;border:none;border-radius:4px;cursor:pointer;background:var(--biru);color:var(--putih);}
+button.gold{background:var(--emas);color:var(--hitam);}
+button.danger{background:var(--merah);}
+.card{background:#111;border:1px solid var(--emas);padding:8px;margin-top:5px;border-radius:6px;cursor:pointer;}
+#toast{position:fixed;bottom:50px;left:50%;transform:translateX(-50%);background:var(--biru);color:#fff;padding:8px 16px;border-radius:6px;font-size:13px;opacity:0;transition:0.3s;z-index:999;}
+#toast.show{opacity:1;}
+footer{padding:10px;text-align:center;border-top:2px solid var(--emas);font-size:12px;margin-top:20px;}
+</style>
+</head>
+<body>
+
+<header class="header-utama">
+  <h1>SmartTeacher - Modul Ajar</h1>
+  <div id="heloUser">Helo: Admin</div>
+  <div class="status-bar">
+    <span id="statusOnline" class="status-online">●</span>
+    <span id="statusText">Online</span>
+    <span id="tanggalHariIni">...</span>
+    <span id="jam">...</span>
+  </div>
+</header>
+
+<div class="container">
+
+  <div class="row">
+    <select id="mapel"><option value="">Pilih Mata Pelajaran</option></select>
+    <select id="kelas"><option value="">Pilih Kelas</option>
+      <option value="1">1</option>
+      <option value="2">2</option>
+      <option value="3">3</option>
+      <option value="4">4</option>
+      <option value="5">5</option>
+      <option value="6">6</option>
+    </select>
+  </div>
+
+  <div class="row">
+    <textarea id="cp" readonly placeholder="Capaian Pembelajaran otomatis"></textarea>
+  </div>
+  <div class="row">
+    <textarea id="tujuan" placeholder="Tuliskan tujuan pembelajaran"></textarea>
+  </div>
+  <div class="row">
+    <textarea id="kegiatan" placeholder="Pendahuluan, Inti, Penutup"></textarea>
+  </div>
+  <div class="row">
+    <textarea id="asesmen" placeholder="Diagnostik, Formatif, Sumatif"></textarea>
+  </div>
+  <div class="row">
+    <textarea id="refleksi" placeholder="Refleksi guru & peserta didik"></textarea>
+  </div>
+
+  <div class="btn-row">
+    <button onclick="simpan()">Simpan</button>
+    <button class="gold" onclick="backup()">Backup</button>
+    <button onclick="restore()">Restore</button>
+    <button class="danger" onclick="resetData()">Reset</button>
+    <button onclick="exportPDF()">Export PDF</button>
+    <button onclick="history.back()">Kembali</button>
+  </div>
+
+  <div id="dataList"></div>
+
+</div>
+
+<footer>SmartTeacher by tsetiadi</footer>
+<div id="toast"></div>
+
+<script>
+// ===== USER DARI BIODATA =====
+const biodata = JSON.parse(localStorage.getItem("biodataGuru")||"{}");
+const guruNama = biodata.guru?.nama || "Admin";
+document.getElementById("heloUser").innerText = "Helo: "+guruNama;
+
+// ===== WAKTU REALTIME =====
+function updateTime(){
+  const now = new Date();
+  document.getElementById("tanggalHariIni").innerText = now.toLocaleDateString("id-ID",{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  document.getElementById("jam").innerText = now.toLocaleTimeString("id-ID");
+}
+setInterval(updateTime,1000);
+updateTime();
+
+// ===== STATUS ONLINE =====
+function updateStatus(){
+  const el = document.getElementById("statusOnline");
+  const txt = document.getElementById("statusText");
+  if(navigator.onLine){el.style.color="lime"; txt.innerText="Online";}
+  else{el.style.color="red"; txt.innerText="Offline";}
+}
+window.addEventListener("online",updateStatus);
+window.addEventListener("offline",updateStatus);
+updateStatus();
+
+// ===== TOAST =====
+function showToast(msg){
+  const t=document.getElementById("toast");
+  t.innerText=msg;
+  t.classList.add("show");
+  setTimeout(()=>t.classList.remove("show"),2000);
+}
+
+// ===== LOAD MAPEL =====
+let dataMapel = JSON.parse(localStorage.getItem("dataMapel"))||[];
+const mapelSelect = document.getElementById("mapel");
+function loadMapel(){
+  mapelSelect.innerHTML='<option value="">Pilih Mata Pelajaran</option>';
+  dataMapel.forEach(m=>{
+    const o=document.createElement("option");
+    o.value=m;
+    o.textContent=m;
+    mapelSelect.appendChild(o);
+  });
+}
+loadMapel();
+
+// ===== DATA CP OTOMATIS =====
+const dataCP = {
+  "Matematika":{"A":"Bilangan cacah & operasi dasar","B":"Pecahan, desimal, geometri","C":"Bilangan rasional & aljabar dasar"},
+  "Bahasa Indonesia":{"A":"Menyimak & menulis teks sederhana","B":"Teks narasi & deskripsi","C":"Analisis berbagai jenis teks"}
+};
+
+function getFase(kelas){if(kelas<=2) return "A"; if(kelas<=4) return "B"; return "C";}
+
+mapelSelect.addEventListener("change",loadCP);
+document.getElementById("kelas").addEventListener("change",loadCP);
+function loadCP(){
+  const m = mapelSelect.value;
+  const k = parseInt(document.getElementById("kelas").value);
+  if(!m||!k) return;
+  const fase = getFase(k);
+  document.getElementById("cp").value = dataCP[m]?.[fase] || "";
+}
+
+// ===== DUAL STORAGE: LOCAL + INDEXEDDB =====
+let db;
+const request = indexedDB.open("SmartTeacherDB",1);
+request.onupgradeneeded = e=>{
+  db = e.target.result;
+  if(!db.objectStoreNames.contains("modulAjar")){
+    db.createObjectStore("modulAjar",{keyPath:"id",autoIncrement:true});
+  }
+};
+request.onsuccess = e=>{db = e.target.result; render();};
+request.onerror = e=>console.error("DB error",e);
+
+// ===== SIMPAN =====
+function simpan(){
+  const m = mapelSelect.value;
+  const k = document.getElementById("kelas").value;
+  if(!m||!k){showToast("Mapel & Kelas wajib!"); return;}
+  const data={
+    mapel:m,
+    kelas:k,
+    cp:document.getElementById("cp").value,
+    tujuan:document.getElementById("tujuan").value,
+    kegiatan:document.getElementById("kegiatan").value,
+    asesmen:document.getElementById("asesmen").value,
+    refleksi:document.getElementById("refleksi").value
+  };
+  // LocalStorage
+  let list = JSON.parse(localStorage.getItem("modulAjar")||"[]");
+  list.push(data);
+  localStorage.setItem("modulAjar",JSON.stringify(list));
+  // IndexedDB
+  const tx = db.transaction("modulAjar","readwrite");
+  const store = tx.objectStore("modulAjar");
+  store.add(data);
+  tx.oncomplete = ()=>{render(); showToast("Data tersimpan");};
+}
+
+// ===== RENDER =====
+function render(){
+  let list = JSON.parse(localStorage.getItem("modulAjar")||"[]");
+  const dataList = document.getElementById("dataList");
+  dataList.innerHTML="";
+  list.forEach((d,i)=>{
+    const div = document.createElement("div");
+    div.className="card";
+    div.textContent = `${d.mapel} - Kelas ${d.kelas}`;
+    div.onclick = ()=>editData(i);
+    div.onmousedown = ()=>pressTimer=setTimeout(()=>hapusData(i),800);
+    div.onmouseup=div.onmouseleave=()=>clearTimeout(pressTimer);
+    dataList.appendChild(div);
+  });
+}
+let pressTimer;
+function hapusData(i){
+  if(confirm("Hapus data ini?")){
+    let list = JSON.parse(localStorage.getItem("modulAjar")||"[]");
+    list.splice(i,1);
+    localStorage.setItem("modulAjar",JSON.stringify(list));
+    // IndexedDB delete (by index)
+    const tx = db.transaction("modulAjar","readwrite");
+    const store = tx.objectStore("modulAjar");
+    store.openCursor().onsuccess=function(e){
+      const cursor=e.target.result;
+      if(cursor){
+        if(i===0){cursor.delete(); return;}
+        i--; cursor.continue();
+      }
+    };
+    render(); showToast("Data dihapus");
+  }
+}
+
+function editData(i){
+  let list = JSON.parse(localStorage.getItem("modulAjar")||"[]");
+  const d = list[i];
+  mapelSelect.value=d.mapel;
+  document.getElementById("kelas").value=d.kelas;
+  document.getElementById("cp").value=d.cp;
+  document.getElementById("tujuan").value=d.tujuan;
+  document.getElementById("kegiatan").value=d.kegiatan;
+  document.getElementById("asesmen").value=d.asesmen;
+  document.getElementById("refleksi").value=d.refleksi;
+  showToast("Mode edit");
+}
+
+// ===== BACKUP =====
+function backup(){
+  const data = localStorage.getItem("modulAjar");
+  const blob = new Blob([data],{type:"application/json"});
+  const a = document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download="backup-modul-ajar.json";
+  a.click();
+  showToast("Backup berhasil");
+}
+
+// ===== RESTORE =====
+function restore(){
+  const input = document.createElement("input");
+  input.type="file";
+  input.onchange = e=>{
+    const file = e.target.files[0];
+    const reader = new FileReader();
+    reader.onload=function(){
+      localStorage.setItem("modulAjar",reader.result);
+      // IndexedDB reset
+      const tx = db.transaction("modulAjar","readwrite");
+      const store = tx.objectStore("modulAjar");
+      store.clear();
+      const arr = JSON.parse(reader.result);
+      arr.forEach(d=>store.add(d));
+      render();
+      showToast("Restore berhasil");
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+}
+
+// ===== RESET =====
+function resetData(){
+  if(confirm("Reset semua data?")){
+    localStorage.removeItem("modulAjar");
+    const tx = db.transaction("modulAjar","readwrite");
+    tx.objectStore("modulAjar").clear();
+    render();
+    showToast("Reset berhasil");
+  }
+}
+
+// ===== EXPORT PDF =====
+function exportPDF(){
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF("p","mm","a4");
+  let y=10;
+  doc.setFontSize(14); doc.text("MODUL AJAR",105,y,{align:"center"}); y+=10;
+  doc.setFontSize(11);
+  doc.text("Guru: "+guruNama,10,y); y+=6;
+  doc.text("Mapel: "+mapelSelect.value+" | Kelas: "+document.getElementById("kelas").value,10,y); y+=6;
+  function addSec(title,content){
+    doc.setFont(undefined,"bold"); doc.text(title,10,y); y+=6;
+    doc.setFont(undefined,"normal");
+    let split = doc.splitTextToSize(content||"-",180);
+    doc.text(split,10,y); y+=split.length*5+4;
+  }
+  addSec("Capaian Pembelajaran",document.getElementById("cp").value);
+  addSec("Tujuan Pembelajaran",document.getElementById("tujuan").value);
+  addSec("Kegiatan Pembelajaran",document.getElementById("kegiatan").value);
+  addSec("Asesmen",document.getElementById("asesmen").value);
+  addSec("Refleksi",document.getElementById("refleksi").value);
+  doc.save("modul-ajar.pdf");
+  showToast("PDF berhasil dibuat");
+}
+</script>
+
+</body>
+</html>

@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Promes - SmartTeacher</title>
+
+<!-- JSPDF -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+
+<style>
+:root{
+  --hitam:#000;
+  --putih:#fff;
+  --biru:#1565c0;
+  --emas:#d4af37;
+  --hijau:#0f0;
+}
+body{
+  margin:0;
+  font-family:Arial, sans-serif;
+  background:var(--hitam);
+  color:var(--putih);
+}
+.header-utama{
+  background:var(--hitam);
+  padding:10px;
+  text-align:center;
+  border-bottom:2px solid var(--emas);
+}
+.header-utama h1{
+  margin:0;
+  color:var(--emas);
+  font-size:18px;
+}
+.header-utama #heloUser{
+  font-size:14px;
+  color:#00ffdd;
+  margin-top:2px;
+}
+.status-bar{
+  font-size:12px;
+  margin-top:2px;
+}
+.status-online{
+  font-weight:bold;
+  color:var(--hijau);
+}
+.container{ padding:10px; display:flex; flex-direction:column; gap:12px; }
+.row{ display:flex; gap:8px; flex-wrap:wrap; }
+.row input,.row select{ flex:1; padding:6px; background:#111; color:var(--putih); border:1px solid var(--emas); border-radius:4px; font-size:13px; }
+textarea{ width:100%; padding:6px; background:#111; color:var(--putih); border:1px solid var(--emas); border-radius:4px; min-height:40px; resize:none; font-size:13px; }
+.btn-row{ display:flex; gap:6px; flex-wrap:wrap; margin-top:5px; }
+button{ flex:1; padding:6px; font-size:12px; border:none; border-radius:4px; cursor:pointer; background:var(--biru); color:var(--putih); }
+.btn-emas{ background:var(--emas); color:var(--hitam); }
+.card{ background:#111; border:1px solid var(--emas); padding:10px; margin-top:10px; border-radius:6px; }
+footer{ padding:10px; text-align:center; border-top:2px solid var(--emas); font-size:12px; }
+.toast{ position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:var(--biru); color:#fff; padding:10px 18px; border-radius:6px; font-size:13px; opacity:0; transition:0.3s; z-index:999; }
+.toast.show{ opacity:1; }
+</style>
+</head>
+<body>
+
+<header class="header-utama">
+  <h1>SmartTeacher - Program Semester (Promes)</h1>
+  <div id="heloUser">Helo: Admin</div>
+  <div class="status-bar">
+    <span id="statusOnline" class="status-online">●</span>
+    <span id="statusText">Online</span> |
+    <span id="tanggalHariIni">...</span> |
+    <span id="jam">...</span>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- Input Data -->
+  <div class="row">
+    <select id="mapel"><option value="">Pilih Mapel</option></select>
+    <select id="kelas"><option value="">Pilih Kelas</option></select>
+  </div>
+  <div class="row">
+    <input type="date" id="tglMulai">
+    <input type="date" id="tglSelesai">
+  </div>
+  <textarea id="promes" placeholder="Tulis Promes di sini..."></textarea>
+
+  <!-- Tombol Aksi -->
+  <div class="btn-row">
+    <button onclick="simpan()">Simpan</button>
+    <button onclick="backup()">Backup</button>
+    <button onclick="restore()">Restore</button>
+    <button onclick="resetForm()">Reset</button>
+    <button class="btn-emas" onclick="exportPDF()">Ex PDF</button>
+    <button onclick="window.history.back()">Kembali</button>
+  </div>
+
+  <!-- Filter & Preview -->
+  <div class="row">
+    <select id="filterMapel" onchange="tampilData()"><option value="">Filter Mapel</option></select>
+    <select id="filterKelas" onchange="tampilData()"><option value="">Filter Kelas</option></select>
+  </div>
+  <div id="dataList"></div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<footer>
+  SmartTeacher by tsetiadi
+</footer>
+
+<script>
+// ===== Nama User & Status =====
+const biodata = JSON.parse(localStorage.getItem("biodataGuru")) || {};
+const guruNama = biodata.guru?.nama || "Admin";
+document.getElementById("heloUser").innerText = "Helo: "+guruNama;
+
+function updateJam(){
+  const now=new Date();
+  document.getElementById("tanggalHariIni").innerText = now.toLocaleDateString("id-ID",{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  document.getElementById("jam").innerText = now.toLocaleTimeString("id-ID");
+}
+setInterval(updateJam,1000); updateJam();
+
+// ===== Status Online =====
+function updateStatus(){
+  const el=document.getElementById("statusOnline");
+  const txt=document.getElementById("statusText");
+  if(navigator.onLine){ el.style.color="lime"; txt.innerText="Online"; }
+  else{ el.style.color="red"; txt.innerText="Offline"; }
+}
+setInterval(updateStatus,5000); updateStatus();
+
+// ===== Toast =====
+function showToast(msg){
+  const t=document.getElementById("toast");
+  t.innerText=msg;
+  t.classList.add("show");
+  setTimeout(()=>t.classList.remove("show"),2000);
+}
+
+// ===== Load Dropdown Mapel & Kelas =====
+function loadDropdowns(){
+  const mapelList = JSON.parse(localStorage.getItem("dataMapel"))||[];
+  const kelasList = JSON.parse(localStorage.getItem("dataKelas"))||["1","2","3","4","5","6"];
+
+  ["mapel","filterMapel"].forEach(id=>{
+    const sel=document.getElementById(id); sel.innerHTML='<option value="">Pilih Mapel</option>';
+    mapelList.forEach(m=>{ const o=document.createElement("option"); o.value=m; o.textContent=m; sel.appendChild(o); });
+  });
+
+  ["kelas","filterKelas"].forEach(id=>{
+    const sel=document.getElementById(id); sel.innerHTML='<option value="">Pilih Kelas</option>';
+    kelasList.forEach(k=>{ const o=document.createElement("option"); o.value=k; o.textContent=k; sel.appendChild(o); });
+  });
+}
+loadDropdowns();
+
+// ===== Data Promes =====
+let dataPromes = JSON.parse(localStorage.getItem("dataPromes"))||[];
+
+// ===== Simpan Data =====
+function simpan(){
+  if(!mapel.value||!kelas.value||!tglMulai.value||!tglSelesai.value||!promes.value){showToast("Lengkapi semua field!"); return;}
+  if(tglMulai.value>tglSelesai.value){showToast("Periode tidak valid!"); return;}
+  dataPromes.push({mapel:mapel.value,kelas:kelas.value,t1:tglMulai.value,t2:tglSelesai.value,promes:promes.value});
+  localStorage.setItem("dataPromes",JSON.stringify(dataPromes));
+  tampilData(); resetForm(); showToast("Data disimpan");
+}
+
+// ===== Preview / Filter =====
+function tampilData(){
+  dataList.innerHTML="";
+  const fMapel = filterMapel.value;
+  const fKelas = filterKelas.value;
+
+  dataPromes.forEach((d,i)=>{
+    if((!fMapel||d.mapel===fMapel)&&(!fKelas||d.kelas===fKelas)){
+      const div = document.createElement("div"); div.className="card";
+      div.innerHTML=`<b>${d.mapel} - Kelas ${d.kelas}</b><br>${d.t1} s/d ${d.t2}<br>${d.promes}`;
+      let timer=null, longPress=false;
+      const start=()=>{longPress=false; timer=setTimeout(()=>{longPress=true; if(confirm("Hapus data ini?")){dataPromes.splice(i,1); localStorage.setItem("dataPromes",JSON.stringify(dataPromes)); tampilData(); showToast("Data dihapus");}},800);}
+      const cancel=()=>{clearTimeout(timer);}
+      div.addEventListener("mousedown",start); div.addEventListener("touchstart",start);
+      div.addEventListener("mouseup",cancel); div.addEventListener("mouseleave",cancel); div.addEventListener("touchend",cancel);
+      div.addEventListener("click",()=>{if(longPress) return; mapel.value=d.mapel; kelas.value=d.kelas; tglMulai.value=d.t1; tglSelesai.value=d.t2; promes.value=d.promes; showToast("Mode edit");});
+      dataList.appendChild(div);
+    }
+  });
+}
+
+// ===== Reset Form =====
+function resetForm(){ mapel.value=""; kelas.value=""; tglMulai.value=""; tglSelesai.value=""; promes.value=""; }
+
+// ===== Backup / Restore =====
+function backup(){ localStorage.setItem("backupPromes",JSON.stringify(dataPromes)); showToast("Backup berhasil"); }
+function restore(){ const b=localStorage.getItem("backupPromes"); if(b){ dataPromes=JSON.parse(b); tampilData(); showToast("Restore berhasil");} }
+
+// ===== Export PDF =====
+function exportPDF(){
+  const fMapel = filterMapel.value;
+  const fKelas = filterKelas.value;
+  const filtered = dataPromes.filter(d=>(!fMapel||d.mapel===fMapel)&&(!fKelas||d.kelas===fKelas));
+  if(filtered.length===0){showToast("Tidak ada data untuk export"); return;}
+  const {jsPDF}=window.jspdf; const doc=new jsPDF();
+  doc.setFontSize(16); doc.text("PROGRAM SEMESTER (PROMES)",105,15,{align:"center"});
+  doc.setFontSize(11); doc.text("Guru: "+guruNama,14,25); doc.text("Tanggal Export: "+new Date().toLocaleString("id-ID"),14,32);
+  let rows=[]; filtered.forEach((d,i)=>rows.push([i+1,d.mapel,d.kelas,d.t1+" s/d "+d.t2,d.promes]));
+  doc.autoTable({startY:40,head:[["No","Mapel","Kelas","Periode","Promes"]],body:rows,theme:"grid"});
+  doc.save("promes-smartteacher.pdf"); showToast("PDF berhasil dibuat");
+}
+
+tampilData();
+</script>
+</body>
+</html>

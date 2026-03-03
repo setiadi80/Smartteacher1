@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SmartTeacher - Mata Pelajaran</title>
+<style>
+:root{
+  --hitam:#000;
+  --putih:#fff;
+  --biru:#1565c0;
+  --emas:#d4af37;
+  --merah:#f00;
+  --hijau:#0f0;
+}
+body{margin:0;font-family:Arial,sans-serif;background:var(--hitam);color:var(--putih);}
+.header-utama{background:var(--hitam);padding:10px;text-align:center;border-bottom:2px solid var(--emas);}
+.header-utama h1{margin:0;color:var(--emas);font-size:18px;}
+.header-utama #heloUser{font-size:14px;color:#00ffdd;margin-top:2px;}
+.status-bar{font-size:12px;margin-top:2px;}
+.status-online{font-weight:bold;color:var(--hijau);}
+.container{padding:10px;margin-bottom:100px;display:flex;flex-direction:column;gap:8px;}
+.row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+.row input{flex:1;padding:6px;background:#111;color:var(--putih);border:1px solid var(--emas);border-radius:4px;font-size:12px;}
+#listMapel{margin-top:10px;border:1px solid var(--emas);border-radius:4px;max-height:300px;overflow-y:auto;}
+#listMapel div{padding:4px 6px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--emas);}
+#listMapel div:last-child{border-bottom:none;}
+button{padding:5px 8px;font-size:11px;border:none;border-radius:4px;cursor:pointer;background:var(--biru);color:var(--putih);white-space:nowrap;}
+.btn-emas{background:var(--emas);color:#000;}
+.btn-merah{background:var(--merah);color:#fff;}
+.btn-row-sticky{display:flex;flex-wrap:nowrap;gap:4px;padding:6px 8px;justify-content:center;position:fixed;bottom:25px;width:100%;background:#111;border-top:2px solid var(--emas);z-index:1000;overflow-x:auto;}
+.toast{position:fixed;bottom:55px;left:50%;transform:translateX(-50%);background:var(--biru);color:#fff;padding:8px 14px;border-radius:6px;font-size:12px;opacity:0;transition:0.3s;z-index:999;}
+.toast.show{opacity:1;}
+footer{position:fixed;bottom:0;width:100%;padding:4px;text-align:center;font-size:11px;color:var(--putih);border-top:1px solid var(--emas);}
+</style>
+</head>
+<body>
+
+<header class="header-utama">
+  <h1>SmartTeacher - Mata Pelajaran</h1>
+  <div id="heloUser">Helo: Admin</div>
+  <div class="status-bar">
+    <span id="statusOnline" class="status-online">●</span>
+    <span id="statusText">Online</span> |
+    <span id="tanggalHariIni">...</span> |
+    <span id="jam">...</span>
+  </div>
+</header>
+
+<div class="container">
+
+  <div class="row">
+    <input type="text" id="mapelInput" placeholder="Nama Mata Pelajaran">
+    <button onclick="btnTambahMapel()">Tambah</button>
+  </div>
+
+  <div id="listMapel"></div>
+
+</div>
+
+<div class="btn-row-sticky">
+  <button onclick="btnBackupMapel()">Backup</button>
+  <button onclick="btnRestoreMapel()">Restore</button>
+  <button class="btn-emas" onclick="btnResetMapel()">Reset Semua</button>
+  <button onclick="btnKembali()">Kembali</button>
+</div>
+
+<footer>SmartTeacher by tsetiadi</footer>
+<div id="toast" class="toast"></div>
+
+<script>
+// ===== Nama User =====
+const biodataGuru = JSON.parse(localStorage.getItem("biodataGuru"))||{};
+const guruNama = biodataGuru.guru?.nama||"Admin";
+document.getElementById("heloUser").innerText = "Helo: "+guruNama;
+
+// ===== Jam & Tanggal =====
+function updateJam(){
+  const now=new Date();
+  document.getElementById("tanggalHariIni").innerText=
+    now.toLocaleDateString("id-ID",{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  document.getElementById("jam").innerText=
+    now.toLocaleTimeString("id-ID");
+}
+setInterval(updateJam,1000); updateJam();
+
+// ===== Status =====
+function updateStatus(){
+  const el=document.getElementById("statusOnline");
+  const txt=document.getElementById("statusText");
+  if(navigator.onLine){el.style.color="lime"; txt.innerText="Online";}
+  else{el.style.color="red"; txt.innerText="Offline";}
+}
+setInterval(updateStatus,5000); updateStatus();
+
+// ===== Toast =====
+function showToast(msg){
+  const t=document.getElementById("toast");
+  t.innerText=msg;
+  t.classList.add("show");
+  setTimeout(()=>t.classList.remove("show"),2000);
+}
+
+// ===== Data Mapel (SOP 2 Array of Object) =====
+let mapelData = JSON.parse(localStorage.getItem("dataMapel"))||[];
+
+// ===== Render =====
+function renderMapel(){
+  const listDiv=document.getElementById("listMapel");
+  listDiv.innerHTML="";
+  mapelData.forEach((m,i)=>{
+    if(!m.aktif) return;
+    const div=document.createElement("div");
+    div.innerHTML=`<span>${m.nama}</span>
+      <span>
+        <button onclick="editMapel(${i})">Edit</button>
+        <button class="btn-merah" onclick="hapusMapel(${i})">Hapus</button>
+      </span>`;
+    listDiv.appendChild(div);
+  });
+  localStorage.setItem("dataMapel",JSON.stringify(mapelData));
+}
+
+// ===== Tombol =====
+function btnTambahMapel(){ tambahMapel(); }
+function btnBackupMapel(){ backupMapel(); showToast("Backup berhasil"); }
+function btnRestoreMapel(){ restoreMapel(); showToast("Restore berhasil"); }
+function btnResetMapel(){ resetMapel(); showToast("Reset berhasil"); }
+function btnKembali(){ showToast("Kembali"); window.history.back(); }
+
+// ===== Tambah =====
+function tambahMapel(){
+  const nama=document.getElementById("mapelInput").value.trim();
+  if(!nama){showToast("Isi nama mapel!"); return;}
+
+  const sudahAda = mapelData.some(m=>m.nama.toLowerCase()===nama.toLowerCase());
+  if(sudahAda){showToast("Mapel sudah ada!"); return;}
+
+  const newMapel={
+    id:"mapel-"+Date.now(),
+    nama:nama,
+    dibuat:new Date().toISOString(),
+    aktif:true
+  };
+
+  mapelData.push(newMapel);
+  document.getElementById("mapelInput").value="";
+  renderMapel();
+  showToast("Mapel ditambahkan");
+}
+
+// ===== Edit =====
+function editMapel(idx){
+  const newName=prompt("Ubah nama Mapel:", mapelData[idx].nama);
+  if(newName && newName.trim()!==""){
+    mapelData[idx].nama=newName.trim();
+    renderMapel();
+    showToast("Mapel diperbarui");
+  }
+}
+
+// ===== Hapus (Soft Delete SOP 2) =====
+function hapusMapel(idx){
+  if(confirm("Hapus Mapel ini?")){
+    mapelData[idx].aktif=false;
+    renderMapel();
+    showToast("Mapel dihapus");
+  }
+}
+
+// ===== Backup / Restore / Reset =====
+function backupMapel(){
+  localStorage.setItem("backupMapel",JSON.stringify(mapelData));
+}
+function restoreMapel(){
+  const b=localStorage.getItem("backupMapel");
+  if(b){mapelData=JSON.parse(b); renderMapel();}
+}
+function resetMapel(){
+  if(confirm("Reset semua Mapel?")){
+    mapelData=[];
+    renderMapel();
+  }
+}
+
+// ===== Init =====
+renderMapel();
+</script>
+</body>
+</html>

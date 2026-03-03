@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SmartTeacher - Program Tahunan</title>
+
+<!-- JSPDF -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+
+<style>
+:root{
+  --hitam:#000;
+  --putih:#fff;
+  --biru:#1565c0;
+  --emas:#d4af37;
+  --hijau:#0f0;
+}
+body{
+  margin:0;
+  font-family:Arial,sans-serif;
+  background:var(--hitam);
+  color:var(--putih);
+}
+.header-utama{
+  background:var(--hitam);
+  padding:10px;
+  text-align:center;
+  border-bottom:2px solid var(--emas);
+}
+.header-utama h1{margin:0;color:var(--emas);font-size:18px;}
+.header-utama #heloUser{font-size:14px;color:#00ffdd;margin-top:2px;}
+.status-bar{font-size:12px;margin-top:2px;}
+.status-online{font-weight:bold;color:var(--hijau);}
+.container{padding:10px;display:flex;flex-direction:column;gap:12px;}
+.row{display:flex;gap:8px;flex-wrap:wrap;}
+.row input,.row select{flex:1;padding:6px;background:#111;color:var(--putih);border:1px solid var(--emas);border-radius:4px;font-size:13px;}
+.row input[type=number]{-moz-appearance:textfield;}
+.row input::-webkit-outer-spin-button,
+.row input::-webkit-inner-spin-button {-webkit-appearance:none;margin:0;}
+textarea{width:100%;padding:6px;background:#111;color:var(--putih);border:1px solid var(--emas);border-radius:4px;min-height:40px;resize:none;font-size:13px;}
+.btn-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:5px;}
+button{flex:1;padding:6px;font-size:12px;border:none;border-radius:4px;cursor:pointer;background:var(--biru);color:var(--putih);}
+.btn-emas{background:var(--emas);color:var(--hitam);}
+.preview-container{display:flex;flex-direction:column;gap:6px;margin-top:8px;}
+#previewTable{width:100%;display:block;max-height:300px;overflow-y:auto;margin-top:10px;border:1px solid var(--emas);border-radius:6px;}
+#totalProta{text-align:right;font-size:13px;margin-top:5px;}
+footer{padding:10px;text-align:center;border-top:2px solid var(--emas);font-size:12px;}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--biru);color:#fff;padding:10px 18px;border-radius:6px;font-size:13px;opacity:0;transition:0.3s;z-index:999;}
+.toast.show{opacity:1;}
+</style>
+</head>
+<body>
+
+<header class="header-utama">
+  <h1 id="appName">SmartTeacher - Program Tahunan</h1>
+  <div id="heloUser">Helo: Admin</div>
+  <div class="status-bar">
+    <span id="statusOnline" class="status-online">●</span>
+    <span id="statusText">Online</span> |
+    <span id="tanggalHariIni">...</span> |
+    <span id="jam">...</span>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- Input Data Prota -->
+  <div class="row">
+    <select id="mapelSelect">
+      <option value="">-- Pilih Mata Pelajaran --</option>
+    </select>
+    <select id="kelasSelect">
+      <option value="">-- Pilih Kelas --</option>
+    </select>
+  </div>
+  <div class="row">
+    <input type="number" id="kd" placeholder="Kompetensi Dasar / KD">
+    <select id="semester">
+      <option value="">-- Semester --</option>
+      <option value="1">1</option>
+      <option value="2">2</option>
+    </select>
+    <input type="text" id="tahunAjaran" placeholder="Tahun Ajaran">
+    <input type="date" id="tglProta">
+  </div>
+
+  <!-- Tombol Aksi -->
+  <div class="btn-row">
+    <button onclick="simpanProta()">Simpan</button>
+    <button onclick="backupProta()">Backup</button>
+    <button onclick="restoreProta()">Restore</button>
+    <button onclick="resetForm()">Reset</button>
+    <button class="btn-emas" onclick="exportPDF()">Ex PDF</button>
+    <button onclick="window.history.back()">Kembali</button>
+  </div>
+
+  <!-- Filter & Preview -->
+  <div class="preview-container">
+    <div class="row">
+      <select id="filterMapel">
+        <option value="">-- Filter Mata Pelajaran --</option>
+      </select>
+      <select id="filterKelas">
+        <option value="">-- Filter Kelas --</option>
+      </select>
+      <button onclick="tampilPreview()">Preview</button>
+    </div>
+    <div id="previewTable"></div>
+    <div id="totalProta"></div>
+  </div>
+
+</div>
+
+<footer>SmartTeacher by tsetiadi</footer>
+<div id="toast" class="toast"></div>
+
+<script>
+// ===== Nama User & Aplikasi =====
+const biodataGuru = JSON.parse(localStorage.getItem("biodataGuru"))||{};
+const guruNama = biodataGuru.guru?.nama||"Admin";
+document.getElementById("heloUser").innerText = "Helo: "+guruNama;
+
+// ===== Data Mapel & Kelas (dropdown) =====
+const mapelData = JSON.parse(localStorage.getItem("dataMapel"))||["Matematika","Bahasa Indonesia","IPA"];
+const kelasData = JSON.parse(localStorage.getItem("dataKelas"))||["VII-A","VII-B","VII-C"];
+
+const mapelSelect=document.getElementById("mapelSelect");
+const kelasSelect=document.getElementById("kelasSelect");
+const filterMapel=document.getElementById("filterMapel");
+const filterKelas=document.getElementById("filterKelas");
+
+mapelData.forEach(m=>{
+  let opt1=document.createElement("option"); opt1.value=m; opt1.text=m; mapelSelect.appendChild(opt1);
+  let opt2=document.createElement("option"); opt2.value=m; opt2.text=m; filterMapel.appendChild(opt2);
+});
+kelasData.forEach(k=>{
+  let opt1=document.createElement("option"); opt1.value=k; opt1.text=k; kelasSelect.appendChild(opt1);
+  let opt2=document.createElement("option"); opt2.value=k; opt2.text=k; filterKelas.appendChild(opt2);
+});
+
+// ===== Realtime Tanggal & Jam =====
+function updateJam(){
+  const now=new Date();
+  document.getElementById("tanggalHariIni").innerText=now.toLocaleDateString("id-ID",{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  document.getElementById("jam").innerText=now.toLocaleTimeString("id-ID");
+}
+setInterval(updateJam,1000); updateJam();
+
+// ===== Status Online / Offline =====
+function updateStatus(){
+  const el=document.getElementById("statusOnline");
+  const txt=document.getElementById("statusText");
+  if(navigator.onLine){el.style.color="lime"; txt.innerText="Online";}
+  else{el.style.color="red"; txt.innerText="Offline";}
+}
+setInterval(updateStatus,5000); updateStatus();
+
+// ===== Toast =====
+function showToast(msg){
+  const t=document.getElementById("toast");
+  t.innerText=msg;
+  t.classList.add("show");
+  setTimeout(()=>t.classList.remove("show"),2000);
+}
+
+// ===== Data Prota =====
+let dataProta = JSON.parse(localStorage.getItem("dataProta"))||[];
+
+// ===== Simpan Prota =====
+function simpanProta(){
+  const mapel=mapelSelect.value;
+  const kelas=kelasSelect.value;
+  const kd=document.getElementById("kd").value.trim();
+  const semester=document.getElementById("semester").value;
+  const tahunAjaran=document.getElementById("tahunAjaran").value.trim();
+  const tglProta=document.getElementById("tglProta").value || new Date().toISOString().split("T")[0];
+
+  if(!mapel || !kelas || !kd || !semester || !tahunAjaran){showToast("Lengkapi semua field!"); return;}
+  dataProta.push({id:Date.now(),mapel,kelas,kd,semester,tahunAjaran,tglProta});
+  localStorage.setItem("dataProta",JSON.stringify(dataProta));
+  resetForm();
+  showToast("Data tersimpan");
+}
+
+// ===== Reset Form =====
+function resetForm(){
+  mapelSelect.value="";
+  kelasSelect.value="";
+  document.getElementById("kd").value="";
+  document.getElementById("semester").value="";
+  document.getElementById("tahunAjaran").value="";
+  document.getElementById("tglProta").value="";
+}
+
+// ===== Backup / Restore =====
+function backupProta(){localStorage.setItem("backupProta",JSON.stringify(dataProta)); showToast("Backup berhasil");}
+function restoreProta(){const b=localStorage.getItem("backupProta"); if(b){dataProta=JSON.parse(b); localStorage.setItem("dataProta",b); showToast("Restore berhasil");}}
+
+// ===== Preview & Filter =====
+function tampilPreview(){
+  const mapelF=filterMapel.value;
+  const kelasF=filterKelas.value;
+
+  let list = dataProta.filter(p=>{
+    return (mapelF=="" || p.mapel==mapelF) && (kelasF=="" || p.kelas==kelasF);
+  });
+
+  let html=`<table><tr><th>Mata Pelajaran</th><th>Kelas</th><th>KD</th><th>Semester</th><th>Tahun Ajaran</th><th>Tanggal Prota</th></tr>`;
+  list.forEach(p=>{
+    html+=`<tr>
+      <td>${p.mapel}</td>
+      <td>${p.kelas}</td>
+      <td>${p.kd}</td>
+      <td>${p.semester}</td>
+      <td>${p.tahunAjaran}</td>
+      <td>${p.tglProta}</td>
+    </tr>`;
+  });
+  html+="</table>";
+  document.getElementById("previewTable").innerHTML=html;
+  document.getElementById("totalProta").innerText = `Total Prota: ${list.length}`;
+}
+
+// ===== Export PDF =====
+function exportPDF(){
+  const preview=document.getElementById("previewTable");
+  if(!preview.innerHTML){showToast("Preview dulu sebelum PDF!"); return;}
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF();
+  doc.setFontSize(16); doc.text("SmartTeacher - Program Tahunan",105,15,{align:"center"});
+  doc.setFontSize(11); doc.text("Guru: "+guruNama,14,25);
+  doc.text("Tanggal Export: "+new Date().toLocaleString("id-ID"),14,32);
+
+  const rows = [];
+  const trs = preview.querySelectorAll("tr");
+  trs.forEach((tr,i)=>{
+    if(i===0)return;
+    const tds = tr.querySelectorAll("td");
+    rows.push(Array.from(tds).map(td=>td.innerText));
+  });
+  doc.autoTable({startY:40,head:[["Mata Pelajaran","Kelas","KD","Semester","Tahun Ajaran","Tanggal Prota"]],body:rows,theme:"grid"});
+  doc.save("prota.pdf");
+  showToast("PDF berhasil dibuat");
+}
+</script>
+</body>
+</html>

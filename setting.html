@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SmartTeacher Application - Setting (SOP2)</title>
+<link rel="stylesheet" href="style.css">
+
+<!-- jsPDF offline -->
+<script src="jspdf.js"></script>
+<script src="backup-restore.js"></script>
+<style>
+body { margin:0; padding:0; font-family: Arial, Helvetica, sans-serif; background:#000; color:gold; }
+.header-utama { background: linear-gradient(90deg,#003f7f,#0059b3); padding:12px; text-align:center; box-shadow:0 4px 12px rgba(0,0,0,0.6); color:#ffd700; border-bottom-left-radius:12px; border-bottom-right-radius:12px; }
+.header-utama h2 { margin:0; font-size:20px; font-weight:bold; }
+.setting-container { display:flex; flex-direction:column; gap:12px; padding:12px; margin-bottom:70px;}
+.biodata-group { border:1px solid #222; padding:10px; border-radius:8px;}
+.biodata-group h3 { font-size:16px; color:#daa520; margin:4px 0 8px 0; border-bottom:1px solid #222; padding-bottom:4px; }
+.setting-container input { width:100%; height:38px; padding:6px 8px; border-radius:6px; border:1px solid #ccc; background:#222; color:gold; font-size:14px; box-sizing:border-box; margin-bottom:6px; }
+.group-buttons { display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;}
+.group-buttons button { flex:1; padding:8px; background:#003f7f; color:gold; border:none; border-radius:6px; cursor:pointer; font-weight:bold; }
+.group-buttons button:active { background:#00264d; transform:scale(0.95); }
+.footer-menu { display:flex; justify-content:flex-start; background:#111; padding:10px; position:fixed; bottom:0; width:100%; box-shadow:0 -2px 6px black;}
+.footer-menu button { background:#222; border:none; color:gold; padding:8px 12px; border-radius:8px; font-size:14px; cursor:pointer; font-weight:bold; }
+.footer-menu button:active { background:#333; transform:scale(0.95);}
+.toast { position:fixed; bottom:80px; left:50%; transform:translateX(-50%); background:black; color:gold; padding:10px 20px; border-radius:10px; display:none; z-index:999; font-size:0.85em;}
+.timestamp { font-size:11px; color:#aaa; margin-top:4px;}
+</style>
+</head>
+<body>
+
+<header class="header-utama">
+  <h2>SmartTeacher Application</h2>
+</header>
+
+<main class="setting-container">
+
+  <!-- SEKOLAH -->
+  <div class="biodata-group" id="groupSekolah">
+    <h3>DATA SEKOLAH</h3>
+    <input id="namaSekolah" placeholder="Nama Sekolah">
+    <input id="npsn" placeholder="NPSN" type="number">
+    <input id="alamatSekolah" placeholder="Alamat Sekolah">
+    <input id="telpSekolah" placeholder="Telepon" type="tel">
+    <input id="email" placeholder="Email">
+    <input id="kepsek" placeholder="Nama Kepala Sekolah">
+    <div class="group-buttons">
+      <button onclick="editSekolah()">EDIT</button>
+      <button onclick="simpanSekolah()">SIMPAN</button>
+      <button onclick="exportPDF('sekolah')">PDF</button>
+    </div>
+    <div class="timestamp" id="tsSekolah"></div>
+  </div>
+
+  <!-- GURU -->
+  <div class="biodata-group" id="groupGuru">
+    <h3>DATA GURU</h3>
+    <input id="namaGuru" placeholder="Nama Guru">
+    <input id="nipGuru" placeholder="NIP" type="number">
+    <input id="nikGuru" placeholder="NIK" type="number">
+    <input id="jkGuru" placeholder="Jenis Kelamin">
+    <input id="ttlGuru" placeholder="Tempat Lahir">
+    <input id="tglLahirGuru" placeholder="Tanggal Lahir (DDMMYYYY)">
+    <input id="umurGuru" placeholder="Umur" readonly>
+    <input id="alamatGuru" placeholder="Alamat">
+    <input id="telpGuru" placeholder="No HP" type="tel">
+    <input id="mapelGuru" placeholder="Mata Pelajaran">
+    <input id="statusGuru" placeholder="Status Guru">
+    <div class="group-buttons">
+      <button onclick="editGuru()">EDIT</button>
+      <button onclick="simpanGuru()">SIMPAN</button>
+      <button onclick="exportPDF('guru')">PDF</button>
+    </div>
+    <div class="timestamp" id="tsGuru"></div>
+  </div>
+
+  <!-- SISWA -->
+  <div class="biodata-group">
+    <h3>DATA SISWA & ORTU</h3>
+    <div class="group-buttons">
+      <button onclick="window.location.href='data-siswa.html'">Buka Data Siswa</button>
+    </div>
+  </div>
+
+  <!-- KEAMANAN -->
+  <div class="biodata-group">
+    <h3>KEAMANAN</h3>
+    <div class="group-buttons">
+      <button onclick="window.location.href='keamanan.html'">PENGATURAN PASSWORD</button>
+      
+      <button onclick="backupData('biodataGuru', biodata)">Backup</button>
+<button onclick="triggerRestore()">Restore</button>
+      
+      <button onclick="resetData()">RESET DATA</button>
+    </div>
+  </div>
+
+</main>
+
+<footer class="footer-menu">
+  <button onclick="kembali()">⬅ Kembali</button>
+</footer>
+
+<div id="toast" class="toast"></div>
+
+<script>
+// ===== STORAGE OFFLINE DUAL =====
+let biodata = JSON.parse(localStorage.getItem("biodataGuru")) || 
+              JSON.parse(sessionStorage.getItem("biodataGuru")) || 
+              {sekolah:{}, guru:{}, siswa:{}, wali:{}, password:"", tsSekolah:"", tsGuru:""};
+
+function showToast(msg){
+  const t=document.getElementById("toast");
+  t.innerText=msg;
+  t.style.display="block";
+  setTimeout(()=>t.style.display="none",2000);
+}
+
+// ===== HITUNG UMUR =====
+function hitungUmur(fld,ufld){
+  let v=document.getElementById(fld).value;
+  if(!v) return;
+  let d=parseInt(v.substr(0,2)),m=parseInt(v.substr(2,2))-1,y=parseInt(v.substr(4,4));
+  let l=new Date(y,m,d),s=new Date();
+  let u=s.getFullYear()-l.getFullYear();
+  let mo=s.getMonth()-l.getMonth();
+  if(mo<0||(mo===0&&s.getDate()<l.getDate())) u--;
+  document.getElementById(ufld).value=u;
+}
+document.getElementById("tglLahirGuru").addEventListener("input",()=>hitungUmur("tglLahirGuru","umurGuru"));
+
+// ===== LOAD DATA =====
+function loadData(){
+  document.getElementById("namaSekolah").value=biodata.sekolah.nama||"";
+  document.getElementById("npsn").value=biodata.sekolah.npsn||"";
+  document.getElementById("alamatSekolah").value=biodata.sekolah.alamat||"";
+  document.getElementById("telpSekolah").value=biodata.sekolah.telp||"";
+  document.getElementById("email").value=biodata.sekolah.email||"";
+  document.getElementById("kepsek").value=biodata.sekolah.kepsek||"";
+  document.getElementById("tsSekolah").innerText = biodata.tsSekolah ? `Last saved: ${biodata.tsSekolah}` : "";
+
+  document.getElementById("namaGuru").value=biodata.guru.nama||"";
+  document.getElementById("nipGuru").value=biodata.guru.nip||"";
+  document.getElementById("nikGuru").value=biodata.guru.nik||"";
+  document.getElementById("jkGuru").value=biodata.guru.jk||"";
+  document.getElementById("ttlGuru").value=biodata.guru.ttl||"";
+  document.getElementById("tglLahirGuru").value=biodata.guru.tglLahir||"";
+  document.getElementById("umurGuru").value=biodata.guru.umur||"";
+  document.getElementById("alamatGuru").value=biodata.guru.alamat||"";
+  document.getElementById("telpGuru").value=biodata.guru.telp||"";
+  document.getElementById("mapelGuru").value=biodata.guru.mapel||"";
+  document.getElementById("statusGuru").value=biodata.guru.status||"";
+  document.getElementById("tsGuru").innerText = biodata.tsGuru ? `Last saved: ${biodata.tsGuru}` : "";
+}
+window.onload = loadData;
+
+// ===== SIMPAN =====
+function simpanSekolah(){
+  const ts=new Date().toLocaleString();
+  biodata.sekolah={
+    nama:namaSekolah.value,
+    npsn:npsn.value,
+    alamat:alamatSekolah.value,
+    telp:telpSekolah.value,
+    email:email.value,
+    kepsek:kepsek.value
+  };
+  biodata.tsSekolah = ts;
+  localStorage.setItem("biodataGuru",JSON.stringify(biodata));
+  sessionStorage.setItem("biodataGuru",JSON.stringify(biodata));
+  showToast("Data Sekolah Tersimpan");
+  loadData();
+}
+
+function simpanGuru(){
+  const ts=new Date().toLocaleString();
+  biodata.guru={
+    nama:namaGuru.value,
+    nip:nipGuru.value,
+    nik:nikGuru.value,
+    jk:jkGuru.value,
+    ttl:ttlGuru.value,
+    tglLahir:tglLahirGuru.value,
+    umur:umurGuru.value,
+    alamat:alamatGuru.value,
+    telp:telpGuru.value,
+    mapel:mapelGuru.value,
+    status:statusGuru.value
+  };
+  biodata.tsGuru = ts;
+  localStorage.setItem("biodataGuru",JSON.stringify(biodata));
+  sessionStorage.setItem("biodataGuru",JSON.stringify(biodata));
+  showToast("Data Guru Tersimpan");
+  loadData();
+}
+
+// ===== RESET =====
+function resetData(){
+  const pw=biodata.password||"";
+  biodata={sekolah:{},guru:{},siswa:{},wali:{},password:pw};
+  localStorage.setItem("biodataGuru",JSON.stringify(biodata));
+  sessionStorage.setItem("biodataGuru",JSON.stringify(biodata));
+  loadData();
+  showToast("Data di-reset kecuali password");
+}
+
+// ===== HAPUS =====
+function hapusSekolah() {
+  if (confirm("Yakin hapus data sekolah?")) {
+    biodata.sekolah = {};
+    simpanSekolah();
+    showToast("Data sekolah dihapus");
+  }
+}
+function hapusGuru() {
+  if (confirm("Yakin hapus data guru?")) {
+    biodata.guru = {};
+    simpanGuru();
+    showToast("Data guru dihapus");
+  }
+}
+
+// ===== EDIT & NAV =====
+function editSekolah(){ namaSekolah.focus(); }
+function editGuru(){ namaGuru.focus(); }
+function kembali(){ window.history.back(); }
+
+// ===== PDF PREMIUM =====
+async function exportPDF(type) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  const ts = new Date().toLocaleString();
+  let y = 50;
+
+  // HEADER
+  doc.setFontSize(25);
+  doc.setTextColor(0,51,102);
+  doc.setFont("helvetica","bold");
+  doc.text("SmartTeacher Application",105,15,{align:"center"});
+  doc.setFontSize(18);
+  doc.setFont("helvetica","normal");
+  doc.setTextColor(0);
+  doc.text(`DATA ${type.toUpperCase()}`,105,25,{align:"center"});
+  doc.setLineWidth(0.7);
+  doc.setDrawColor(0,51,102);
+  doc.line(10,28,200,28);
+
+  // DATA
+  const data = type==="sekolah"?biodata.sekolah:biodata.guru;
+  const labelX=12, colonX=50, valueX=55;
+  for(const k in data){
+    if(data[k]!==undefined && !k.startsWith("ts")){
+      doc.setFont("helvetica","bold"); doc.setFontSize(14); doc.setTextColor(0,51,102); doc.text(k.toUpperCase(),labelX,y);
+      doc.text(":", colonX,y);
+      doc.setFont("helvetica","normal"); doc.setTextColor(0); doc.text(`${data[k]}`,valueX,y);
+      y+=12;
+      if(y>280){ addFooter(doc); doc.addPage(); y=30; }
+    }
+  }
+
+  addFooter(doc);
+  const now=new Date();
+  const tgl=("0"+now.getDate()).slice(-2)+("0"+(now.getMonth()+1)).slice(-2)+now.getFullYear();
+  const filename=type==="guru"?`Dataguru-${tgl}.pdf`:`Datasekolah-${tgl}.pdf`;
+  doc.save(filename);
+  showToast(`PDF ${type.toUpperCase()} berhasil dibuat`);
+}
+
+// ===== FOOTER SOP2 =====
+function addFooter(doc){
+  doc.setFontSize(10); doc.setTextColor(100);
+  doc.text("SmartTeacher @2026 | Created by tsetiadi",105,287,{align:"center"});
+}
+</script>
+</body>
+</html>

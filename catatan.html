@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CP - SmartTeacher</title>
+<link rel="stylesheet" href="style.css">
+<style>
+html, body {margin:0; padding:0; font-family:Arial, Helvetica, sans-serif; background:#000; color:#fff; display:flex; flex-direction:column; height:100%; overscroll-behavior:none;}
+.header-utama{background: linear-gradient(90deg,#003f7f,#0059b3); padding:12px 10px; text-align:center; color:#ffd700; border-bottom-left-radius:12px; border-bottom-right-radius:12px; position:sticky; top:0; z-index:999; box-shadow:0 4px 12px rgba(0,0,0,0.6);}
+.header-utama h1{margin:0;font-size:20px;letter-spacing:1px;}
+.user-info{margin-top:6px;font-size:14px;color:#fff;}
+.user-info span{font-weight:bold;color:#00ffdd;font-size:16px;}
+.status-container{margin-top:4px;font-size:11px;color:#fff;display:flex;justify-content:center;gap:6px;align-items:center;}
+.status-online{font-weight:bold;}
+.container{padding:10px; flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:8px;}
+.form-input{display:flex; flex-direction:column; gap:6px;}
+.form-input input, .form-input textarea, .form-input select{padding:6px; border-radius:8px; border:none; background:#111; color:#fff;}
+.form-input textarea{resize:none; height:60px;}
+.buttons-top{display:grid; grid-template-columns:repeat(3,1fr); gap:6px;}
+.btn-small{background:#003f7f; color:gold; border:none; padding:8px; border-radius:8px; font-size:14px; cursor:pointer; transition:0.2s;}
+.btn-small:active{transform:scale(0.95);}
+.catatan-filter{display:flex; flex-wrap:wrap; gap:6px; margin-bottom:4px;}
+.catatan-filter input, .catatan-filter select{flex:1; padding:6px; border-radius:8px; border:none; background:#111; color:#fff;}
+.periode-label{font-size:12px; color:#00ffdd; margin-bottom:4px;}
+.catatan-list{display:flex; flex-direction:column; gap:6px; max-height:300px; overflow-y:auto; border:1px solid #444; border-radius:12px; padding:6px;}
+.catatan-item{background:#111; padding:8px; border-radius:12px; box-shadow:0 0 4px black; cursor:pointer;}
+.catatan-item:hover{background:#222;}
+.catatan-item h4{margin:0 0 2px 0;font-size:16px;color:#00ffff;}
+.catatan-item p{margin:0;font-size:14px;color:#fff;}
+.catatan-meta{font-size:12px;color:#aaa;margin-bottom:4px; display:flex; justify-content:space-between;}
+.btn-pdf{margin-top:4px; background:#0059b3; color:gold; padding:8px; border-radius:8px; font-size:14px; cursor:pointer;}
+.footer-menu{display:flex; justify-content:space-around; background:#111; padding:8px 0 20px; position:sticky; bottom:0; width:100%; box-shadow:0 -2px 6px black; z-index:998;}
+.footer-menu button{background:#222; border:none; color:gold; padding:12px 6px; border-radius:12px; font-size:16px; width:auto; text-align:center; transition:0.2s;}
+.footer-menu button p{font-size:12px; margin:2px 0 0 0;}
+.footer-menu button:active{transform:scale(0.95); background:#333;}
+.toast{position:fixed; bottom:120px; left:50%; transform:translateX(-50%); background:black; color:gold; padding:8px 16px; border-radius:8px; display:none; z-index:999; font-size:0.8em;}
+</style>
+</head>
+<body>
+
+<header class="header-utama">
+  <h1>CP - SmartTeacher</h1>
+  <div class="user-info">Halo, <span id="namaUser">...</span></div>
+  <div class="status-container">
+    <span id="statusOnline" class="status-online">●</span>
+    <span id="statusText">...</span> |
+    <span id="tanggalHariIni">...</span> |
+    <span id="jam">...</span>
+  </div>
+</header>
+
+<main class="container">
+
+  <!-- Form Input Baru -->
+  <div class="form-input">
+    <input type="text" id="judulCatatan" placeholder="Judul Catatan">
+    <textarea id="isiCatatan" placeholder="Isi Catatan"></textarea>
+    <select id="kategoriCatatan">
+      <option value="Reminder">Reminder</option>
+      <option value="Ide">Ide</option>
+      <option value="Evaluasi">Evaluasi</option>
+    </select>
+  </div>
+
+  <!-- Tombol Simpan / Backup / Restore -->
+  <div class="buttons-top">
+    <button class="btn-small" onclick="simpanCatatan()">💾 Simpan</button>
+    <button class="btn-small" onclick="backupCP()">📂 Backup</button>
+    <button class="btn-small" onclick="restoreCP()">♻️ Restore</button>
+  </div>
+
+  <!-- Periode & Filter -->
+  <div class="periode-label">Periode Baru</div>
+  <div class="catatan-filter">
+    <input type="date" id="filterTglDari">
+    <input type="date" id="filterTglSampai">
+    <select id="filterKategori">
+      <option value="All">Semua Kategori</option>
+      <option value="Reminder">Reminder</option>
+      <option value="Ide">Ide</option>
+      <option value="Evaluasi">Evaluasi</option>
+    </select>
+  </div>
+
+  <!-- Preview Catatan -->
+  <div id="previewArea" class="catatan-list"></div>
+
+  <!-- Tombol Export PDF -->
+  <button class="btn-pdf" onclick="exportPDF()">📄 Export PDF</button>
+
+</main>
+
+<footer class="footer-menu">
+  <button onclick="window.location.href='index.html'">⬅️ Kembali<p></p></button>
+  <button onclick="bukaSetting()">⚙️ Setting<p></p></button>
+  <button onclick="resetData()">🧹 Reset<p></p></button>
+  <button onclick="logout()">🚪 Logout<p></p></button>
+</footer>
+
+<div class="credit">by tsetiadi @2026</div>
+<div id="toast" class="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+// === Session & Status ===
+document.addEventListener("DOMContentLoaded",()=>{
+  cekSession(); updateJam(); setInterval(updateJam,1000);
+  updateStatus(); setInterval(updateStatus,5000);
+  tampilkanPreview();
+});
+
+const SESSION_TIME=30*60*1000;
+function cekSession(){let session=null; try{session=JSON.parse(localStorage.getItem("sessionLogin"))}catch(e){localStorage.removeItem("sessionLogin");}
+if(!session||!session.expired||Date.now()>session.expired){window.location.href="login.html"; return;}
+session.expired=Date.now()+SESSION_TIME; localStorage.setItem("sessionLogin",JSON.stringify(session));
+let biodata=JSON.parse(localStorage.getItem("biodataGuru"))||{}; let nama=(biodata.guru&&biodata.guru.nama)?biodata.guru.nama:"Admin"; document.getElementById("namaUser").innerText=nama;
+const today=new Date(); document.getElementById("tanggalHariIni").innerText=today.toLocaleDateString("id-ID",{weekday:"long",day:"numeric",month:"long",year:"numeric"});}
+
+function updateJam(){const now=new Date(); document.getElementById("jam").innerText=now.toLocaleTimeString("id-ID");}
+function updateStatus(){const el=document.getElementById("statusOnline");const txt=document.getElementById("statusText"); if(navigator.onLine){el.style.color="lime";txt.innerText="Online";}else{el.style.color="red";txt.innerText="Offline";}}
+function showToast(msg){const toast=document.getElementById("toast"); toast.innerText=msg; toast.style.display="block"; setTimeout(()=>{toast.style.display="none";},2000);}
+
+// === Catatan CP ===
+function simpanCatatan(){
+  const judul=document.getElementById("judulCatatan").value.trim(); 
+  const isi=document.getElementById("isiCatatan").value.trim(); 
+  const kategori=document.getElementById("kategoriCatatan").value;
+  if(!judul||!isi){showToast("Judul dan isi wajib diisi"); return;}
+  let catatan=JSON.parse(localStorage.getItem("catatan"))||[];
+  const id=Date.now(); const tanggal=new Date().toLocaleDateString("id-ID");
+  catatan.push({id,judul,isi,kategori,tanggal}); localStorage.setItem("catatan",JSON.stringify(catatan));
+  document.getElementById("judulCatatan").value=""; document.getElementById("isiCatatan").value="";
+  tampilkanPreview(); showToast("Catatan tersimpan");
+}
+
+// === Preview & Filter ===
+function tampilkanPreview(){
+  const catatan=JSON.parse(localStorage.getItem("catatan"))||[];
+  const tglDari=document.getElementById("filterTglDari").value;
+  const tglSampai=document.getElementById("filterTglSampai").value;
+  const kategori=document.getElementById("filterKategori").value;
+  let tglStart=tglDari?new Date(tglDari):null;
+  let tglEnd=tglSampai?new Date(tglSampai):null;
+  const filtered=catatan.filter(c=>{
+    const cTgl=new Date(c.tanggal.split("/").reverse().join("-"));
+    const tglOk=(!tglStart||cTgl>=tglStart)&&(!tglEnd||cTgl<=tglEnd);
+    const kategoriOk=(kategori.toLowerCase()==="all")||(c.kategori.toLowerCase()===kategori.toLowerCase());
+    return tglOk&&kategoriOk;
+  });
+
+  const preview=document.getElementById("previewArea");
+  preview.innerHTML="";
+  if(filtered.length===0){preview.innerHTML="<p style='color:#aaa;text-align:center;'>Tidak ada catatan</p>"; return;}
+  filtered.forEach(c=>{
+    const div=document.createElement("div"); div.className="catatan-item";
+    div.innerHTML=`<div class="catatan-meta"><span>${c.tanggal} | ${c.kategori}</span></div><h4>${c.judul}</h4><p>${c.isi}</p>`;
+    div.onclick=()=>{editCatatan(c.id);};
+    div.oncontextmenu=(e)=>{e.preventDefault(); hapusCatatan(c.id);};
+    preview.appendChild(div);
+  });
+}
+document.getElementById("filterTglDari").addEventListener("change", tampilkanPreview);
+document.getElementById("filterTglSampai").addEventListener("change", tampilkanPreview);
+document.getElementById("filterKategori").addEventListener("change", tampilkanPreview);
+
+// === Backup / Restore / PDF ===
+function backupCP(){const catatan=JSON.parse(localStorage.getItem("catatan"))||[]; if(catatan.length===0){showToast("Tidak ada catatan untuk backup"); return;}
+const blob=new Blob([JSON.stringify(catatan)],{type:"application/json"}); const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download="backup-cp.json"; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url); showToast("Backup CP berhasil");}
+
+function restoreCP(){const input=document.createElement("input"); input.type="file"; input.accept="application/json"; input.onchange=e=>{const file=e.target.files[0]; if(!file)return; const reader=new FileReader(); reader.onload=function(){try{const data=JSON.parse(reader.result); if(!Array.isArray(data))throw"Format file salah"; localStorage.setItem("catatan",JSON.stringify(data)); showToast("Restore CP berhasil"); tampilkanPreview();}catch(err){showToast("File backup CP rusak"); console.error(err);}}; reader.readAsText(file);}; input.click();}
+
+function exportPDF(){
+  const previewItems=document.getElementById("previewArea").children;
+  if(previewItems.length===0){showToast("Tidak ada catatan untuk PDF"); return;}
+  const { jsPDF }=window.jspdf;
+  const doc=new jsPDF(); const margin=10; let y=10;
+  doc.setFontSize(18); doc.setTextColor(0,0,0); doc.text("Catatan Pribadi",doc.internal.pageSize.getWidth()/2,y,{align:"center"}); y+=6;
+  doc.setLineWidth(0.5); doc.line(margin,y,doc.internal.pageSize.getWidth()-margin,y); y+=6;
+  const biodata=JSON.parse(localStorage.getItem("biodataGuru"))||{}; const namaUser=(biodata.guru&&biodata.guru.nama)?biodata.guru.nama:"Admin";
+  const now=new Date(); const tglCetak=now.toLocaleDateString("id-ID")+" "+now.toLocaleTimeString("id-ID");
+  doc.setFontSize(10); doc.text(`User: ${namaUser}`, margin, y); doc.text(`Tgl Cetak: ${tglCetak}`,doc.internal.pageSize.getWidth()-margin,y,{align:"right"}); y+=8;
+  doc.setFontSize(12);
+  Array.from(previewItems).forEach((item,i)=>{
+    if(y>doc.internal.pageSize.getHeight()-20){doc.addPage(); y=10;}
+    const meta=item.querySelector(".catatan-meta span").innerText;
+    const judul=item.querySelector("h4").innerText;
+    const isi=item.querySelector("p").innerText;
+    doc.text(`${i+1}. [${meta}] ${judul}`, margin, y); y+=6;
+    const splitIsi=doc.splitTextToSize(isi, doc.internal.pageSize.getWidth()-2*margin);
+    doc.text(splitIsi, margin, y); y+=splitIsi.length*6+4;
+  });
+  doc.save("catatanCP.pdf"); showToast("Export PDF berhasil");
+}
+
+// === Edit / Hapus via klik catatan ===
+function editCatatan(id){const catatan=JSON.parse(localStorage.getItem("catatan"))||[]; const c=catatan.find(x=>x.id===id); if(!c)return;
+const newJudul=prompt("Edit Judul",c.judul); const newIsi=prompt("Edit Isi",c.isi); const newKategori=prompt("Edit Kategori",c.kategori); if(newJudul&&newIsi&&newKategori){c.judul=newJudul;c.isi=newIsi;c.kategori=newKategori; localStorage.setItem("catatan",JSON.stringify(catatan)); tampilkanPreview(); showToast("Catatan diperbarui");}}
+function hapusCatatan(id){if(confirm("Yakin hapus catatan ini?")){let catatan=JSON.parse(localStorage.getItem("catatan"))||[]; catatan=catatan.filter(c=>c.id!==id); localStorage.setItem("catatan",JSON.stringify(catatan)); tampilkanPreview(); showToast("Catatan dihapus");}}
+
+// === Footer & Setting ===
+function resetData(){if(confirm("Yakin ingin menghapus semua catatan CP?")){localStorage.removeItem("catatan"); showToast("Semua catatan CP telah dihapus"); tampilkanPreview();}}
+function logout(){localStorage.removeItem("sessionLogin"); window.location.href="login.html";}
+function bukaSetting(){window.location.href="setting.html";}
+</script>
+</body>
+</html>

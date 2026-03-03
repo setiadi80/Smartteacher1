@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SmartTeacher - Capaian Pembelajaran</title>
+<link rel="stylesheet" href="style.css">
+<style>
+html,body{margin:0;padding:0;font-family:Arial;background:#000;color:#fff;height:100%;display:flex;flex-direction:column;}
+.header-utama{background:linear-gradient(90deg,#003f7f,#0059b3);padding:8px;text-align:center;color:#ffd700;position:sticky;top:0;z-index:999;}
+.header-utama h1{margin:0;font-size:18px;}
+.user-info{font-size:12px;margin-top:4px;}
+.user-info span{color:#00ffdd;font-weight:bold;}
+.status-container{font-size:10px;margin-top:2px;}
+.container{padding:6px;flex:1;display:flex;flex-direction:column;overflow:hidden;}
+.input-cp{display:flex;flex-direction:column;gap:4px;margin-bottom:6px;}
+.input-cp select,input,textarea{padding:6px;border-radius:6px;border:none;background:#111;color:#fff;font-size:12px;}
+.input-cp textarea{resize:none;height:60px;}
+.filter-area{display:flex;gap:4px;align-items:center;margin-bottom:6px;flex-wrap:wrap;}
+.filter-area select,input{flex:1;padding:4px;border-radius:4px;border:none;background:#111;color:#fff;font-size:12px;}
+.preview-wrapper{flex:1;overflow-y:auto;margin-bottom:4px;}
+.catatan-list{display:flex;flex-direction:column;gap:6px;}
+.catatan-item{background:#111;padding:6px;border-radius:8px;font-size:12px;}
+.catatan-item h4{margin:4px 0;color:#00ffff;}
+.catatan-meta{font-size:10px;color:#aaa;display:flex;justify-content:space-between;}
+.footer-menu{display:flex;justify-content:space-around;background:#111;padding:6px 4px;position:sticky;bottom:0;width:100%;gap:4px;}
+.btn-small{background:#003f7f;color:gold;border:none;padding:6px;border-radius:6px;font-size:12px;cursor:pointer;flex:1;}
+.toast{position:fixed;bottom:140px;left:50%;transform:translateX(-50%);background:black;color:gold;padding:6px 10px;border-radius:6px;display:none;font-size:12px;}
+</style>
+</head>
+<body>
+
+<header class="header-utama">
+  <h1>SmartTeacher - Capaian Pembelajaran</h1>
+  <div class="user-info">Halo, <span id="namaUser">Admin</span></div>
+  <div class="status-container">
+    <span id="statusOnline">●</span>
+    <span id="statusText">Offline</span> |
+    <span id="tanggalHariIni">...</span> |
+    <span id="jam">...</span>
+  </div>
+</header>
+
+<main class="container">
+  <div class="input-cp">
+    <select id="siswaSelect"></select>
+    <select id="mapelSelect"></select>
+    <select id="kelasSelect"></select>
+    <input type="text" id="judulCP" placeholder="Judul Capaian">
+    <textarea id="isiCP" placeholder="Deskripsi Capaian"></textarea>
+  </div>
+
+  <div class="filter-area">
+    <select id="filterSiswa"></select>
+    <input type="date" id="filterTanggalAwal">
+    <input type="date" id="filterTanggalAkhir">
+    <button class="btn-small" onclick="tampilkanPreview(true)">Filter Preview</button>
+  </div>
+
+  <div class="preview-wrapper">
+    <div id="previewArea" class="catatan-list"></div>
+  </div>
+</main>
+
+<div class="footer-menu">
+  <button class="btn-small" onclick="simpanCP()">💾 Simpan</button>
+  <button class="btn-small" onclick="backupData()">📦 Backup</button>
+  <button class="btn-small" onclick="restoreData()">📂 Restore</button>
+  <button class="btn-small" onclick="exportPDFFiltered()">📄 XPDF</button>
+  <button class="btn-small" onclick="resetData()">🧹 Reset</button>
+  <button class="btn-small" onclick="window.history.back()">⬅️ Kembali</button>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+// ==== Waktu & Status ====
+setInterval(()=>{
+  const n=new Date();
+  jam.innerText=n.toLocaleTimeString("id-ID");
+  tanggalHariIni.innerText=n.toLocaleDateString("id-ID");
+  statusOnline.style.color=navigator.onLine?"lime":"red";
+  statusText.innerText=navigator.onLine?"Online":"Offline";
+},1000);
+
+function showToast(msg){
+  const t=document.getElementById("toast");
+  t.innerText=msg;
+  t.style.display="block";
+  setTimeout(()=>t.style.display="none",2000);
+}
+
+// ==== Dropdowns ====
+function loadDropdowns(){
+  const siswaSelect=document.getElementById("siswaSelect");
+  const mapelSelect=document.getElementById("mapelSelect");
+  const kelasSelect=document.getElementById("kelasSelect");
+  siswaSelect.innerHTML='<option value="">-- Pilih Siswa --</option>';
+  (JSON.parse(localStorage.getItem("siswa")||"[]")).forEach(s=>siswaSelect.innerHTML+=`<option value="${s.nis}">${s.nama}</option>`);
+  mapelSelect.innerHTML='<option value="">-- Pilih Mapel --</option>';
+  (JSON.parse(localStorage.getItem("dataMapel")||"[]")).forEach(m=>{if(m.aktif!==false) mapelSelect.innerHTML+=`<option value="${m.id}">${m.nama}</option>`;});
+  kelasSelect.innerHTML='<option value="">-- Pilih Kelas --</option>';
+  ["1","2","3","4","5","6"].forEach(k=>kelasSelect.innerHTML+=`<option value="${k}">Kelas ${k}</option>`);
+
+  const filterSiswa=document.getElementById("filterSiswa");
+  filterSiswa.innerHTML='<option value="">-- Semua Siswa --</option>';
+  (JSON.parse(localStorage.getItem("siswa")||"[]")).forEach(s=>filterSiswa.innerHTML+=`<option value="${s.nis}">${s.nama}</option>`);
+}
+
+// ==== Simpan CP ====
+function simpanCP(){
+  const siswa=document.getElementById("siswaSelect").value;
+  const mapel=document.getElementById("mapelSelect").value;
+  const kelas=document.getElementById("kelasSelect").value;
+  const judul=document.getElementById("judulCP").value;
+  const isi=document.getElementById("isiCP").value;
+  if(!siswa||!mapel||!kelas||!judul||!isi){showToast("Lengkapi semua field"); return;}
+  const obj={id:Date.now(),siswaId:siswa,mapelId:mapel,kelas:kelas,judul:judul,isi:isi,dibuat:new Date().toISOString()};
+  const local=JSON.parse(localStorage.getItem("cpData")||"[]");
+  local.push(obj); localStorage.setItem("cpData",JSON.stringify(local));
+  document.getElementById("judulCP").value="";
+  document.getElementById("isiCP").value="";
+  tampilkanPreview();
+  showToast("CP tersimpan");
+}
+
+// ==== Preview ====
+function tampilkanPreview(applyFilter=false){
+  const previewArea=document.getElementById("previewArea");
+  previewArea.innerHTML="";
+  let data=JSON.parse(localStorage.getItem("cpData")||"[]");
+  if(applyFilter){
+    const siswaId=document.getElementById("filterSiswa").value;
+    const tglAwal=document.getElementById("filterTanggalAwal").value?new Date(document.getElementById("filterTanggalAwal").value):null;
+    const tglAkhir=document.getElementById("filterTanggalAkhir").value?new Date(document.getElementById("filterTanggalAkhir").value):null;
+    data=data.filter(d=>{
+      let match=true;
+      if(siswaId) match=match&&d.siswaId==siswaId;
+      const dibuat=new Date(d.dibuat);
+      if(tglAwal) match=match&&dibuat>=tglAwal;
+      if(tglAkhir) match=match&&dibuat<=tglAkhir;
+      return match;
+    });
+  }
+  data.sort((a,b)=>b.dibuat.localeCompare(a.dibuat));
+  if(!data.length){previewArea.innerHTML="<small>Belum ada data CP</small>"; return;}
+  const siswaList=JSON.parse(localStorage.getItem("siswa")||"[]");
+  const mapelList=JSON.parse(localStorage.getItem("dataMapel")||"[]");
+  data.forEach(c=>{
+    const namaSiswa=siswaList.find(s=>s.nis==c.siswaId)?.nama||"-";
+    const namaMapel=mapelList.find(m=>m.id==c.mapelId)?.nama||"-";
+    const div=document.createElement("div");
+    div.className="catatan-item";
+    div.innerHTML=`<div class="catatan-meta"><span>${new Date(c.dibuat).toLocaleDateString("id-ID")}</span><span>Kelas ${c.kelas}</span></div>
+      <h4>${c.judul}</h4><small>Siswa: ${namaSiswa}<br>Mapel: ${namaMapel}</small><p>${c.isi}</p>`;
+    previewArea.appendChild(div);
+  });
+}
+
+// ==== Backup ke HP (.json valid) ====
+function backupData(){
+  const key="cpData";
+  const data=localStorage.getItem(key);
+  if(!data){showToast("Tidak ada data untuk backup"); return;}
+  try{
+    const parsed=JSON.parse(data);
+    const blob=new Blob([JSON.stringify(parsed, null, 2)],{type:"application/json"});
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(blob);
+    a.download="paya.json";
+    a.click();
+    showToast("Backup tersimpan sebagai paya.json");
+  }catch(err){showToast("Data corrupt, backup gagal"); console.error(err);}
+}
+
+// ==== Restore dari HP (.json valid) ====
+function restoreData(){
+  const key="cpData";
+  const input=document.createElement("input");
+  input.type="file"; input.accept=".json";
+  input.onchange=e=>{
+    const file=e.target.files[0];
+    if(!file){showToast("Tidak ada file dipilih"); return;}
+    const reader=new FileReader();
+    reader.onload=ev=>{
+      try{
+        const data=JSON.parse(ev.target.result);
+        if(!Array.isArray(data)){showToast("File salah format"); return;}
+        localStorage.setItem(key,JSON.stringify(data));
+        tampilkanPreview();
+        showToast("Restore berhasil dari paya.json");
+      }catch(err){showToast("File rusak atau format salah"); console.error(err);}
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+}
+
+// ==== Export PDF ====
+function exportPDFFiltered(){
+  const data=JSON.parse(localStorage.getItem("cpData")||"[]");
+  if(!data.length){showToast("Tidak ada data"); return;}
+  const { jsPDF }=window.jspdf;
+  const doc=new jsPDF();
+  const siswaList=JSON.parse(localStorage.getItem("siswa")||"[]");
+  const mapelList=JSON.parse(localStorage.getItem("dataMapel")||"[]");
+  data.forEach((c,i)=>{
+    doc.setFontSize(14); doc.text("SMART TEACHER - CAPAIAN PEMBELAJARAN",105,10,{align:"center"});
+    doc.setFontSize(12); doc.text(`Tanggal Export: ${new Date().toLocaleDateString("id-ID")}`,105,16,{align:"center"});
+    doc.line(10,18,200,18);
+    const namaSiswa=siswaList.find(s=>s.nis==c.siswaId)?.nama||"-";
+    const namaMapel=mapelList.find(m=>m.id==c.mapelId)?.nama||"-";
+    let y=25;
+    doc.text(`Judul: ${c.judul}`,10,y); y+=6;
+    doc.text(`Kelas: ${c.kelas}`,10,y); y+=6;
+    doc.text(`Siswa: ${namaSiswa}`,10,y); y+=6;
+    doc.text(`Mapel: ${namaMapel}`,10,y); y+=6;
+    doc.text(`Deskripsi: ${c.isi}`,10,y); y+=10;
+    doc.setFontSize(10); doc.text(`Halaman ${i+1}`,105,290,{align:"center"});
+    if(i<data.length-1) doc.addPage();
+  });
+  doc.save(`CP_${new Date().toLocaleDateString("id-ID")}.pdf`);
+  showToast("PDF tersimpan");
+}
+
+// ==== Reset ====
+function resetData(){
+  localStorage.removeItem("cpData");
+  tampilkanPreview();
+  showToast("Data direset");
+}
+
+// ==== Init ====
+function tampilNamaUser(){document.getElementById("namaUser").innerText=(JSON.parse(localStorage.getItem("biodataGuru")||"{}")?.guru?.nama)||"Admin";}
+loadDropdowns(); tampilkanPreview(); tampilNamaUser();
+</script>
+</body>
+</html>

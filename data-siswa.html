@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SmartTeacher - Data Siswa & Ortu</title>
+<style>
+:root{--hitam:#000;--putih:#fff;--emas:#d4af37;--hijau:#00ff00;}
+body{margin:0;font-family:Arial,sans-serif;background:var(--hitam);color:var(--putih);display:flex;flex-direction:column;height:100vh;}
+.header-utama{background:#000;padding:10px;text-align:center;border-bottom:2px solid var(--emas);}
+.header-utama h1{margin:0;color:var(--emas);font-size:18px;}
+#heloUser{font-size:13px;margin-top:3px;}
+.status-bar{font-size:12px;}
+.status-online{color:var(--hijau);}
+.container{flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:8px;}
+input,textarea,select{padding:6px;background:#111;border:1px solid var(--emas);border-radius:4px;color:#fff;font-size:13px;font-family:Arial,sans-serif;}
+textarea{resize:none;width:100%;height:28px;overflow-y:hidden;}
+.row{display:flex;gap:8px;align-items:center;}
+.row input,.row select{flex:1;}
+#umur{max-width:110px;text-align:center;}
+#tb,#bb,#kelas{max-width:80px;text-align:center;}
+button{padding:6px;border:none;border-radius:4px;font-size:13px;cursor:pointer;font-weight:bold;}
+button:active{transform:scale(0.97);}
+.btn-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;}
+.btn-simpan{background:var(--emas);color:#000;}
+.btn-backup{background:#1565c0;color:#fff;}
+.btn-restore{background:#0a74da;color:#fff;}
+.btn-export{background:#0a74da;color:#fff;}
+.btn-kembali{background:#444;color:#fff;}
+.btn-edit{background:#00bcd4;color:#000;}
+.btn-hapus{background:#f44336;color:#fff;}
+.card{border:1px solid var(--emas);padding:6px;border-radius:4px;font-size:12px;user-select:none;opacity:0;transition:opacity 0.5s;display:flex;justify-content:space-between;align-items:center;}
+.card .info{flex:1;}
+.sticky-btn{position:sticky;bottom:0;background:rgba(0,0,0,0.95);padding:6px 0;display:flex;justify-content:center;}
+.sticky-btn .btn-row{width:100%;justify-content:space-around;}
+#toast{position:fixed;bottom:60px;left:50%;transform:translateX(-50%);background:var(--emas);color:#000;padding:8px 12px;border-radius:4px;font-size:13px;display:none;z-index:999;}
+</style>
+</head>
+<body>
+
+<header class="header-utama">
+  <h1>SmartTeacher - Data Siswa & Ortu</h1>
+  <div id="heloUser">Helo: Admin</div>
+  <div class="status-bar">
+    <span id="statusOnline" class="status-online">●</span>
+    <span id="statusText">Offline</span> |
+    <span id="tanggalHariIni"></span> |
+    <span id="jam"></span>
+  </div>
+</header>
+
+<div class="container">
+  <input id="namaSiswa" placeholder="Nama">
+  <div class="row">
+    <input id="nis" placeholder="NIS" inputmode="numeric">
+    <input id="kelas" placeholder="Kelas">
+  </div>
+  <input id="tempatLahir" placeholder="Tempat Lahir">
+  <div class="row">
+    <div style="flex:1;">
+      <label style="font-size:12px;color:gold;">Tgl Lahir</label>
+      <div style="display:flex;gap:4px;">
+        <select id="tgl"></select>
+        <select id="bln"></select>
+        <select id="thn"></select>
+      </div>
+    </div>
+    <input id="umur" placeholder="Umur" readonly>
+  </div>
+  <div class="row">
+    <input id="tb" placeholder="TB" type="number" inputmode="numeric">
+    <input id="bb" placeholder="BB" type="number" inputmode="numeric">
+  </div>
+  <textarea id="alamatSiswa" placeholder="Alamat"></textarea>
+
+  <hr style="border:1px solid gold;">
+  <b style="color:gold;">Ortu / Wali</b>
+  <input id="namaAyah" placeholder="Ayah">
+  <input id="namaIbu" placeholder="Ibu">
+  <textarea id="alamatOrtu" placeholder="Alamat"></textarea>
+  <input id="hpWali" placeholder="HP" inputmode="numeric">
+
+  <div class="sticky-btn">
+    <div class="btn-row">
+      <button type="button" class="btn-simpan" id="btnSimpan">💾 Simpan</button>
+      <button type="button" class="btn-backup" id="btnBackup">📦 Backup</button>
+      <button type="button" class="btn-restore" id="btnRestore">♻️ Restore</button>
+      <button type="button" class="btn-export" onclick="window.location.href='preview-siswa.html'">👁️ Preview</button>
+      <button type="button" class="btn-kembali" onclick="window.history.back()">⬅️ Kembali</button>
+      <input type="file" id="jsonFileInput" style="display:none;" accept=".json"/>
+    </div>
+  </div>
+
+  <div id="dataList"></div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ===== JAM & STATUS =====
+function updateJam(){
+  const now=new Date();
+  document.getElementById("tanggalHariIni").innerText=now.toLocaleDateString("id-ID");
+  document.getElementById("jam").innerText=now.toLocaleTimeString("id-ID");
+}
+setInterval(updateJam,1000); updateJam();
+
+function updateStatus(){
+  const s=document.getElementById("statusOnline");
+  const t=document.getElementById("statusText");
+  if(navigator.onLine){ s.style.color="lime"; t.innerText="Online"; }
+  else{ s.style.color="red"; t.innerText="Offline"; }
+}
+updateStatus();
+window.addEventListener("online",updateStatus);
+window.addEventListener("offline",updateStatus);
+
+// ===== DROPDOWN TGL/BLN/THN =====
+const tgl=document.getElementById("tgl");
+const bln=document.getElementById("bln");
+const thn=document.getElementById("thn");
+for(let i=1;i<=31;i++) tgl.innerHTML+=`<option value="${i}">${i}</option>`;
+["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"].forEach((b,i)=> bln.innerHTML+=`<option value="${i}">${b}</option>`);
+for(let i=new Date().getFullYear(); i>=1980; i--) thn.innerHTML+=`<option value="${i}">${i}</option>`;
+
+// ===== HITUNG UMUR =====
+const umur=document.getElementById("umur");
+function hitungUmur(){
+  const dob=new Date(thn.value,bln.value,tgl.value);
+  const now=new Date();
+  let y=now.getFullYear()-dob.getFullYear();
+  let m=now.getMonth()-dob.getMonth();
+  if(m<0){y--;m+=12;}
+  umur.value=y+"th "+m+"bulan";
+}
+[tgl,bln,thn].forEach(el=>el.addEventListener("change",hitungUmur));
+
+// ===== LOCALSTORAGE DATA =====
+let siswaData = JSON.parse(localStorage.getItem("siswa")||"[]");
+
+// ===== TOAST =====
+function showToast(msg){
+  const t=document.getElementById("toast");
+  t.innerText=msg; t.style.display="block";
+  setTimeout(()=>{ t.style.display="none"; },2000);
+}
+
+// ===== TAMPIL DATA =====
+const dataList=document.getElementById("dataList");
+function tampilData(){
+  dataList.innerHTML="";
+  siswaData.forEach(d=>{
+    const div=document.createElement("div");
+    div.className="card";
+    div.innerHTML=`<div class="info">${d.nama} | ${d.nis} | ${d.kelas || "-"} | ${d.umur} | ${d.tb} | ${d.bb}</div>
+      <div style="display:flex;gap:4px;">
+        <button class="btn-edit" onclick="editSiswa('${d.nis}')">✏️ Edit</button>
+        <button class="btn-hapus" onclick="hapusSiswa('${d.nis}')">🗑️ Hapus</button>
+      </div>`;
+    dataList.appendChild(div);
+    requestAnimationFrame(()=>{div.style.opacity=1;});
+  });
+}
+tampilData();
+
+// ===== RESET FORM =====
+function resetForm(){ document.querySelectorAll("input,textarea").forEach(e=>e.value=""); }
+
+// ===== SIMPAN SISWA =====
+function simpanSiswa(){
+  const nis=document.getElementById("nis").value.trim();
+  const nama=document.getElementById("namaSiswa").value.trim();
+  if(!nis||!nama){alert("Nama & NIS wajib diisi"); return;}
+  if(siswaData.find(s=>s.nis===nis)){ showToast("❌ NIS sudah ada"); return;}
+  const siswa={
+    nis, nama,
+    kelas:document.getElementById("kelas").value.trim(),
+    tempatLahir:document.getElementById("tempatLahir").value,
+    ttl: thn.value+"-"+bln.value+"-"+tgl.value,
+    umur: umur.value,
+    tb: document.getElementById("tb").value,
+    bb: document.getElementById("bb").value,
+    alamat: document.getElementById("alamatSiswa").value,
+    ayah: document.getElementById("namaAyah").value,
+    ibu: document.getElementById("namaIbu").value,
+    alamatOrtu: document.getElementById("alamatOrtu").value,
+    hp: document.getElementById("hpWali").value,
+    lastUpdated: Date.now()
+  };
+  siswaData.push(siswa);
+  localStorage.setItem("siswa", JSON.stringify(siswaData));
+  showToast("✅ Tersimpan: "+siswa.nama);
+  resetForm();
+  tampilData();
+}
+
+// ===== EDIT & HAPUS =====
+function editSiswa(nis){
+  const s = siswaData.find(x=>x.nis===nis);
+  if(!s) return;
+  document.getElementById("namaSiswa").value=s.nama;
+  document.getElementById("nis").value=s.nis;
+  document.getElementById("kelas").value=s.kelas || "";
+  document.getElementById("tempatLahir").value=s.tempatLahir;
+  tgl.value=s.ttl.split("-")[2];
+  bln.value=s.ttl.split("-")[1];
+  thn.value=s.ttl.split("-")[0];
+  hitungUmur();
+  document.getElementById("tb").value=s.tb;
+  document.getElementById("bb").value=s.bb;
+  document.getElementById("alamatSiswa").value=s.alamat;
+  document.getElementById("namaAyah").value=s.ayah;
+  document.getElementById("namaIbu").value=s.ibu;
+  document.getElementById("alamatOrtu").value=s.alamatOrtu;
+  document.getElementById("hpWali").value=s.hp;
+  siswaData = siswaData.filter(x=>x.nis!==nis);
+  localStorage.setItem("siswa", JSON.stringify(siswaData));
+  tampilData();
+}
+
+function hapusSiswa(nis){
+  if(!confirm("Yakin hapus siswa ini?")) return;
+  siswaData = siswaData.filter(x=>x.nis!==nis);
+  localStorage.setItem("siswa", JSON.stringify(siswaData));
+  tampilData();
+  showToast("🗑️ Siswa terhapus");
+}
+
+// ===== BACKUP & RESTORE 3 LAYER =====
+let db;
+const dbReq = indexedDB.open("SmartTeacherDB", 1);
+dbReq.onupgradeneeded = (e)=>{ db = e.target.result; if(!db.objectStoreNames.contains("siswa")) db.createObjectStore("siswa",{keyPath:"nis"}); };
+dbReq.onsuccess = (e)=>{ db = e.target.result; };
+dbReq.onerror = (e)=>console.error("DB Error", e);
+
+function saveIndexedDB(data){
+  if(!db) return;
+  const tx = db.transaction("siswa","readwrite");
+  const store = tx.objectStore("siswa");
+  data.forEach(d=>store.put(d));
+}
+
+function loadIndexedDB(callback){
+  if(!db) return callback([]);
+  const tx = db.transaction("siswa","readonly");
+  const store = tx.objectStore("siswa");
+  const req = store.getAll();
+  req.onsuccess = ()=>callback(req.result);
+}
+
+// Backup
+document.getElementById("btnBackup").addEventListener("click",()=>{
+  if(!confirm("Backup semua data siswa?")) return;
+
+  // 1️⃣ LocalStorage
+  localStorage.setItem("siswa", JSON.stringify(siswaData));
+
+  // 2️⃣ IndexedDB
+  saveIndexedDB(siswaData);
+
+  // 3️⃣ JSON File
+  const blob = new Blob([JSON.stringify(siswaData,null,2)],{type:"application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href=url; a.download="siswa.json"; a.click();
+  URL.revokeObjectURL(url);
+
+  showToast("📦 Backup selesai: LocalStorage + IndexedDB + JSON");
+});
+
+// Restore
+document.getElementById("btnRestore").addEventListener("click",()=>{
+  if(!confirm("Restore data siswa?")) return;
+
+  const fileInput = document.getElementById("jsonFileInput");
+  fileInput.click();
+  fileInput.onchange = (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (ev)=>{
+      siswaData = JSON.parse(ev.target.result);
+      localStorage.setItem("siswa", JSON.stringify(siswaData));
+      saveIndexedDB(siswaData);
+      tampilData();
+      showToast("♻️ Restore selesai dari JSON");
+    };
+    reader.readAsText(file);
+  };
+});
+
+// ===== EVENT SIMPAN =====
+document.getElementById("btnSimpan").addEventListener("click", simpanSiswa);
+
+</script>
+</body>
+</html>

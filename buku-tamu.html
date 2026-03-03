@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BukuTamu Digital</title>
+
+<!-- JSPDF -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+
+<style>
+:root{
+  --hitam:#000;
+  --putih:#fff;
+  --biru:#1565c0;
+  --emas:#d4af37;
+  --hijau:#0f0;
+}
+body{
+  margin:0;
+  font-family:Arial,sans-serif;
+  background:var(--hitam);
+  color:var(--putih);
+}
+.header-utama{
+  background:var(--hitam);
+  padding:10px;
+  text-align:center;
+  border-bottom:2px solid var(--emas);
+}
+.header-utama h1{
+  margin:0;
+  color:var(--emas);
+  font-size:18px;
+}
+.header-utama #heloUser{
+  font-size:14px;
+  color:#00ffdd;
+  margin-top:2px;
+}
+.status-bar{
+  font-size:12px;
+  margin-top:2px;
+}
+.status-online{
+  font-weight:bold;
+  color:var(--hijau);
+}
+.container{
+  padding:10px;
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+}
+.row{display:flex;gap:8px;flex-wrap:wrap;}
+.row input, .row select{
+  flex:1;
+  padding:6px;
+  background:#111;
+  color:var(--putih);
+  border:1px solid var(--emas);
+  border-radius:4px;
+  font-size:13px;
+}
+textarea{
+  width:100%;
+  padding:6px;
+  background:#111;
+  color:var(--putih);
+  border:1px solid var(--emas);
+  border-radius:4px;
+  min-height:40px;
+  resize:none;
+  font-size:13px;
+}
+.btn-row{
+  display:flex;
+  gap:6px;
+  flex-wrap:wrap;
+  margin-top:5px;
+}
+button{
+  flex:1;
+  padding:6px;
+  font-size:12px;
+  border:none;
+  border-radius:4px;
+  cursor:pointer;
+  background:var(--biru);
+  color:var(--putih);
+}
+.btn-emas{
+  background:var(--emas);
+  color:var(--hitam);
+}
+.preview-container{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  margin-top:8px;
+}
+#previewTable{
+  width:100%;
+  display:block;
+  max-height:300px;
+  overflow-y:auto;
+  margin-top:10px;
+  border:1px solid var(--emas);
+  border-radius:6px;
+}
+#totalTamu{
+  text-align:right;
+  font-size:13px;
+  margin-top:5px;
+}
+footer{
+  padding:10px;
+  text-align:center;
+  border-top:2px solid var(--emas);
+  font-size:12px;
+}
+.toast{
+  position:fixed;
+  bottom:20px;
+  left:50%;
+  transform:translateX(-50%);
+  background:var(--biru);
+  color:#fff;
+  padding:10px 18px;
+  border-radius:6px;
+  font-size:13px;
+  opacity:0;
+  transition:0.3s;
+  z-index:999;
+}
+.toast.show{opacity:1;}
+</style>
+</head>
+<body>
+
+<header class="header-utama">
+  <h1 id="appName">BukuTamu Digital</h1>
+  <div id="heloUser">Helo: Admin</div>
+  <div class="status-bar">
+    <span id="statusOnline" class="status-online">●</span>
+    <span id="statusText">Online</span> |
+    <span id="tanggalHariIni">...</span> |
+    <span id="jam">...</span>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- Input Data Tamu -->
+  <div class="row">
+    <input type="text" id="namaTamu" placeholder="Nama Tamu">
+    <input type="text" id="kontakTamu" placeholder="Kontak / HP">
+  </div>
+  <textarea id="tujuanTamu" placeholder="Tujuan / Keterangan"></textarea>
+
+  <div class="row">
+    <input type="date" id="tglTamu">
+    <input type="text" id="hariTamu" placeholder="Hari" readonly>
+  </div>
+
+  <!-- Tombol Utama -->
+  <div class="btn-row">
+    <button onclick="simpanTamu()">Simpan</button>
+    <button onclick="backupTamu()">Backup</button>
+    <button onclick="restoreTamu()">Restore</button>
+    <button onclick="resetForm()">Reset</button>
+    <button class="btn-emas" onclick="exportPDF()">Ex PDF</button>
+    <button onclick="window.history.back()">Kembali</button>
+  </div>
+
+  <!-- Filterisasi & Preview -->
+  <div class="preview-container">
+    <div class="row">
+      <input type="text" id="filterNama" placeholder="Filter Nama">
+      <input type="date" id="filterDari">
+      <input type="date" id="filterSampai">
+      <button onclick="tampilPreview()">Preview</button>
+    </div>
+    <div id="previewTable"></div>
+    <div id="totalTamu"></div>
+  </div>
+
+</div>
+
+<footer>Dikelola oleh BukuTamu</footer>
+
+<div id="toast" class="toast"></div>
+
+<script>
+// ===== Nama User & Aplikasi =====
+const biodataGuru = JSON.parse(localStorage.getItem("biodataGuru"))||{};
+const guruNama = biodataGuru.guru?.nama||"Admin";
+document.getElementById("heloUser").innerText = "Helo: "+guruNama;
+document.getElementById("appName").innerText = "BukuTamu Digital";
+
+// ===== Realtime Tanggal & Jam =====
+function updateJam(){
+  const now=new Date();
+  document.getElementById("tanggalHariIni").innerText=now.toLocaleDateString("id-ID",{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  document.getElementById("jam").innerText=now.toLocaleTimeString("id-ID");
+
+  // Update input tanggal & hari otomatis
+  const tglInput=document.getElementById("tglTamu");
+  const hariInput=document.getElementById("hariTamu");
+  tglInput.valueAsDate=now;
+  hariInput.value=now.toLocaleDateString("id-ID",{weekday:'long'});
+}
+setInterval(updateJam,1000); updateJam();
+
+// ===== Status Online / Offline =====
+function updateStatus(){
+  const el=document.getElementById("statusOnline");
+  const txt=document.getElementById("statusText");
+  if(navigator.onLine){el.style.color="lime"; txt.innerText="Online";}
+  else{el.style.color="red"; txt.innerText="Offline";}
+}
+setInterval(updateStatus,5000); updateStatus();
+
+// ===== Toast =====
+function showToast(msg){
+  const t=document.getElementById("toast");
+  t.innerText=msg;
+  t.classList.add("show");
+  setTimeout(()=>t.classList.remove("show"),2000);
+}
+
+// ===== Data Buku Tamu =====
+let dataTamu = JSON.parse(localStorage.getItem("dataTamu"))||[];
+
+// ===== Simpan Tamu =====
+function simpanTamu(){
+  const nama=document.getElementById("namaTamu").value.trim();
+  const kontak=document.getElementById("kontakTamu").value.trim();
+  const tujuan=document.getElementById("tujuanTamu").value.trim();
+  const tgl=document.getElementById("tglTamu").value;
+  const hari=document.getElementById("hariTamu").value;
+  if(!nama || !kontak || !tujuan || !tgl){showToast("Lengkapi semua field!"); return;}
+  const now=new Date(tgl);
+  dataTamu.push({id:Date.now(),nama,kontak,tujuan,tgl:now.toISOString(),hari});
+  localStorage.setItem("dataTamu",JSON.stringify(dataTamu));
+  resetForm();
+  showToast("Data tersimpan");
+}
+
+// ===== Reset Form =====
+function resetForm(){
+  document.getElementById("namaTamu").value="";
+  document.getElementById("kontakTamu").value="";
+  document.getElementById("tujuanTamu").value="";
+}
+
+// ===== Backup / Restore =====
+function backupTamu(){localStorage.setItem("backupTamu",JSON.stringify(dataTamu)); showToast("Backup berhasil");}
+function restoreTamu(){
+  const b=localStorage.getItem("backupTamu");
+  if(b){dataTamu=JSON.parse(b); localStorage.setItem("dataTamu",b); showToast("Restore berhasil");}
+}
+
+// ===== Preview & Filter =====
+function tampilPreview(){
+  const namaFilter=document.getElementById("filterNama").value.toLowerCase();
+  const dari=document.getElementById("filterDari").value || "1970-01-01";
+  const sampai=document.getElementById("filterSampai").value || "2099-12-31";
+
+  let list = dataTamu.filter(t=>{
+    return t.nama.toLowerCase().includes(namaFilter) && t.tgl.slice(0,10)>=dari && t.tgl.slice(0,10)<=sampai;
+  });
+
+  let html=`<table><tr><th>Nama</th><th>Kontak</th><th>Tujuan</th><th>Tanggal & Hari</th></tr>`;
+  list.forEach(t=>{
+    html+=`<tr>
+      <td>${t.nama}</td>
+      <td>${t.kontak}</td>
+      <td>${t.tujuan}</td>
+      <td>${new Date(t.tgl).toLocaleDateString("id-ID",{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</td>
+    </tr>`;
+  });
+  html+="</table>";
+  document.getElementById("previewTable").innerHTML=html;
+  document.getElementById("totalTamu").innerText = `Total Tamu: ${list.length}`;
+}
+
+// ===== Export PDF =====
+function exportPDF(){
+  const preview=document.getElementById("previewTable");
+  if(!preview.innerHTML){showToast("Preview dulu sebelum PDF!"); return;}
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF();
+  doc.setFontSize(16); doc.text("Buku Tamu",105,15,{align:"center"});
+  doc.setFontSize(11); doc.text("Tanggal Export: "+new Date().toLocaleString("id-ID"),14,25);
+  
+  const rows = [];
+  const trs = preview.querySelectorAll("tr");
+  trs.forEach((tr,i)=>{
+    if(i===0)return;
+    const tds = tr.querySelectorAll("td");
+    rows.push(Array.from(tds).map(td=>td.innerText));
+  });
+  doc.autoTable({startY:35,head:[["Nama","Kontak","Tujuan","Tanggal & Hari"]],body:rows,theme:"grid"});
+  doc.save("buku_tamu.pdf");
+  showToast("PDF berhasil dibuat");
+}
+</script>
+</body>
+</html>

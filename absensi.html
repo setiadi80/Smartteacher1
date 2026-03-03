@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SmartTeacher - Absensi Profesional</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+
+<style>
+:root{
+  --hitam:#000; --putih:#fff; --biru:#1565c0; --emas:#d4af37;
+  --hijau:#0f0; --kuning:#ffd700; --biru-muda:#00bfff; --merah:#ff4d4d;
+}
+body{margin:0;font-family:Arial,sans-serif;background:var(--hitam);color:var(--putih);}
+.header-utama{background:var(--hitam);padding:10px;text-align:center;border-bottom:2px solid var(--emas);}
+.header-utama h1{margin:0;color:var(--emas);font-size:18px;}
+.header-utama #heloUser{font-size:14px;color:#00ffdd;margin-top:2px;}
+.status-bar{font-size:12px;margin-top:2px;}
+.status-online{color:var(--hijau);font-weight:bold;}
+.container{padding:10px;display:flex;flex-direction:column;gap:12px;}
+.row{display:flex;gap:8px;flex-wrap:wrap;}
+.row select,input{flex:1;padding:6px;background:#111;color:var(--putih);border:1px solid var(--emas);border-radius:4px;font-size:13px;}
+textarea{width:100%;padding:6px;background:#111;color:var(--putih);border:1px solid var(--emas);border-radius:4px;resize:none;min-height:40px;font-size:13px;}
+.btn-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:5px;}
+button{flex:1;padding:6px;font-size:12px;border:none;border-radius:4px;cursor:pointer;background:var(--biru);color:var(--putih);}
+button.preview-btn{flex:0.5;min-width:80px;}
+.btn-emas{background:var(--emas);color:var(--hitam);}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--biru);color:#fff;padding:10px 18px;border-radius:6px;font-size:13px;opacity:0;transition:0.3s;z-index:999;}
+.toast.show{opacity:1;}
+footer{padding:10px;text-align:center;border-top:2px solid var(--emas);}
+table{width:100%;border-collapse:collapse;margin-top:6px;}
+table, th, td{border:1px solid var(--emas);}
+th, td{padding:6px;text-align:center;font-size:12px;}
+.preview-container{display:flex;flex-direction:column;gap:6px;margin-top:8px;}
+#previewTable{width:100%;display:block;max-height:300px;overflow-y:auto;border:1px solid var(--emas);border-radius:6px;}
+#totalAbsensi{text-align:right;font-size:13px;margin-top:5px;}
+</style>
+</head>
+<body>
+
+<header class="header-utama">
+  <h1>SmartTeacher - Absensi</h1>
+  <div id="heloUser">Helo: Admin</div>
+  <div class="status-bar">
+    <span id="statusOnline" class="status-online">●</span>
+    <span id="statusText">Online</span> |
+    <span id="tanggalHariIni">...</span> |
+    <span id="jam">...</span>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- Input Absensi -->
+  <div class="row">
+    <select id="siswaSelect"><option value="">-- Pilih Siswa --</option></select>
+    <input type="date" id="tglInput">
+    <select id="keterangan">
+      <option value="">-- Keterangan --</option>
+      <option value="Sakit">Sakit</option>
+      <option value="Izin">Izin</option>
+      <option value="Alfa">Alfa</option>
+    </select>
+  </div>
+
+  <div class="btn-row">
+    <button onclick="simpanAbsensi()">Simpan</button>
+    <button onclick="backupAbsensi()">Backup</button>
+    <button onclick="restoreAbsensi()">Restore</button>
+    <button onclick="resetForm()">Reset</button>
+    <button class="btn-emas" onclick="previewPDF()">Ex PDF</button>
+    <button onclick="window.history.back()">Kembali</button>
+  </div>
+
+  <!-- Filter Preview -->
+  <div class="preview-container">
+    <div class="row">
+      <select id="filterSiswa"><option value="">-- Semua Siswa --</option></select>
+      <input type="date" id="filterDari">
+      <input type="date" id="filterSampai">
+      <button class="preview-btn" onclick="tampilPreview()">Preview</button>
+    </div>
+    <div id="previewTable"></div>
+    <div id="totalAbsensi"></div>
+  </div>
+
+</div>
+
+<footer>
+  <div>Dikelola oleh SmartTeacher</div>
+</footer>
+
+<div id="toast" class="toast"></div>
+
+<script>
+// ===== User & Status =====
+const biodataGuru = JSON.parse(localStorage.getItem("biodataGuru"))||{};
+const guruNama = biodataGuru.guru?.nama||"Admin";
+document.getElementById("heloUser").innerText = "Helo: "+guruNama;
+
+function updateJam(){
+  const now = new Date();
+  document.getElementById("tanggalHariIni").innerText = now.toLocaleDateString("id-ID",{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  document.getElementById("jam").innerText = now.toLocaleTimeString("id-ID");
+}
+setInterval(updateJam,1000); updateJam();
+
+function updateStatus(){
+  const el=document.getElementById("statusOnline");
+  const txt=document.getElementById("statusText");
+  if(navigator.onLine){el.style.color="lime"; txt.innerText="Online";}
+  else{el.style.color="red"; txt.innerText="Offline";}
+}
+setInterval(updateStatus,5000); updateStatus();
+
+function showToast(msg){ 
+  const t=document.getElementById("toast"); 
+  t.innerText=msg; 
+  t.classList.add("show"); 
+  setTimeout(()=>t.classList.remove("show"),2000); 
+}
+
+// ===== Load Siswa dari localStorage =====
+let siswaData = [];
+const siswaLS = localStorage.getItem("dataSiswa");
+if (siswaLS) {
+  try { siswaData = JSON.parse(siswaLS); } catch(e){ siswaData = []; }
+}
+
+const siswaSelect = document.getElementById("siswaSelect");
+const filterSiswa = document.getElementById("filterSiswa");
+
+if(Array.isArray(siswaData)){
+  siswaData.forEach(s=>{
+    let opt1 = document.createElement("option"); opt1.value = s.id; opt1.text = s.nama; siswaSelect.appendChild(opt1);
+    let opt2 = document.createElement("option"); opt2.value = s.id; opt2.text = s.nama; filterSiswa.appendChild(opt2);
+  });
+}
+
+// ===== Data Absensi =====
+let dataAbsensi = [];
+const absensiLS = localStorage.getItem("dataAbsensi");
+if(absensiLS){
+  try{ dataAbsensi = JSON.parse(absensiLS); } catch(e){ dataAbsensi=[]; }
+}
+
+// ===== Simpan Absensi =====
+function simpanAbsensi(){
+  const siswaId = siswaSelect.value;
+  const tgl = document.getElementById("tglInput").value;
+  const ket = document.getElementById("keterangan").value;
+  if(!siswaId || !tgl || !ket){ showToast("Lengkapi semua field!"); return; }
+  dataAbsensi.push({id:Date.now(),siswaId,tgl,ket});
+  localStorage.setItem("dataAbsensi",JSON.stringify(dataAbsensi));
+  resetForm(); showToast("Data tersimpan");
+}
+
+// ===== Reset Form =====
+function resetForm(){ siswaSelect.value=""; tglInput.value=""; keterangan.value=""; }
+
+// ===== Backup / Restore =====
+function backupAbsensi(){ localStorage.setItem("backupAbsensi",JSON.stringify(dataAbsensi)); showToast("Backup berhasil"); }
+function restoreAbsensi(){ 
+  const b = localStorage.getItem("backupAbsensi"); 
+  if(b){ dataAbsensi = JSON.parse(b); localStorage.setItem("dataAbsensi",b); showToast("Restore berhasil"); } 
+}
+
+// ===== Preview Table =====
+function tampilPreview(){
+  const dari = document.getElementById("filterDari").value || "1970-01-01";
+  const sampai = document.getElementById("filterSampai").value || "2099-12-31";
+  const selectedSiswa = filterSiswa.value;
+  
+  const start = new Date(dari);
+  const end = new Date(sampai);
+  const totalHari = Math.floor((end-start)/86400000)+1;
+
+  let html = `<table><tr><th>Siswa</th><th>Hadir</th><th>Sakit</th><th>Izin</th><th>Alfa</th><th>Persentase</th></tr>`;
+  let totalData = 0;
+
+  if(Array.isArray(siswaData)){
+    siswaData.forEach(s=>{
+      if(selectedSiswa && s.id!==selectedSiswa) return; // filter per siswa
+
+      const absensiPerSiswa = dataAbsensi.filter(a=>a.siswaId===s.id && a.tgl>=dari && a.tgl<=sampai);
+      const sakit = absensiPerSiswa.filter(a=>a.ket==="Sakit").length;
+      const izin = absensiPerSiswa.filter(a=>a.ket==="Izin").length;
+      const alfa = absensiPerSiswa.filter(a=>a.ket==="Alfa").length;
+      const hadir = Math.max(totalHari - (sakit + izin + alfa),0);
+      const persen = totalHari>0 ? ((hadir/totalHari)*100).toFixed(2)+"%" : "0%";
+      totalData += absensiPerSiswa.length;
+
+      html+=`<tr>
+        <td>${s.nama}</td>
+        <td style="color:var(--hijau)">${hadir}</td>
+        <td style="color:var(--kuning)">${sakit}</td>
+        <td style="color:var(--biru-muda)">${izin}</td>
+        <td style="color:var(--merah)">${alfa}</td>
+        <td>${persen}</td>
+      </tr>`;
+    });
+  }
+
+  html+="</table>";
+  document.getElementById("previewTable").innerHTML = html;
+  document.getElementById("totalAbsensi").innerText = `Total Data Absensi: ${totalData}`;
+}
+
+// ===== Export PDF =====
+function previewPDF(){
+  const preview=document.getElementById("previewTable");
+  if(!preview.innerHTML){showToast("Preview dulu sebelum PDF!"); return;}
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF();
+  doc.setFontSize(16); doc.text("Absensi Siswa",105,15,{align:"center"});
+  doc.setFontSize(11); doc.text("Guru: "+guruNama,14,25);
+  doc.text("Tanggal Export: "+new Date().toLocaleString("id-ID"),14,32);
+
+  const rows=[];
+  preview.querySelectorAll("tr").forEach((tr,i)=>{
+    if(i===0) return;
+    const tds = tr.querySelectorAll("td");
+    rows.push(Array.from(tds).map(td=>td.innerText));
+  });
+
+  doc.autoTable({startY:40,head:[["Siswa","Hadir","Sakit","Izin","Alfa","Persentase"]],body:rows,theme:"grid"});
+  doc.save("absensi.pdf");
+  showToast("PDF berhasil dibuat");
+}
+</script>
+</body>
+</html>

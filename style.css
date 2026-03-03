@@ -1,0 +1,272 @@
+/* ===== RESET ===== */
+
+body {
+  margin: 0;
+  font-family: Arial, Helvetica, sans-serif;
+  background: #000;
+  color: white;
+}
+
+
+/* ===== HEADER ===== */
+
+.header-utama {
+  background: linear-gradient(to right, #00264d, #003f7f);
+  padding: 10px;
+  text-align: center;
+  box-shadow: 0 2px 6px black;
+}
+
+.header-utama h1 {
+  margin: 0;
+  font-size: 18px;
+  color: gold;
+  letter-spacing: 1px;
+}
+
+.info-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  margin-top: 5px;
+}
+
+
+/* ===== GRID MENU DASHBOARD ===== */
+
+.grid-menu {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  padding: 10px;
+}
+
+.menu {
+  text-decoration: none;
+  color: gold;
+  text-align: center;
+  padding: 15px 8px;
+  border-radius: 15px;
+  font-size: 18px;
+  background: #111;
+  box-shadow: 0 0 8px black;
+  transition: 0.2s;
+}
+
+.menu:active {
+  transform: scale(0.95);
+}
+
+.menu p {
+  font-size: 14px;
+  margin-top: 6px;
+}
+
+
+/* ===== WARNA BORDER ===== */
+
+.biru {
+  border: 2px solid #00aaff;
+}
+
+.emas {
+  border: 2px solid gold;
+}
+
+
+/* ===== FOOTER MENU ===== */
+
+.footer-menu {
+  display: flex;
+  justify-content: space-around;
+  background: #111;
+  padding: 8px 0;
+  position: fixed;
+  bottom: 20px;
+  width: 100%;
+  box-shadow: 0 -2px 6px black;
+}
+
+.footer-menu button {
+  background: #222;
+  border: none;
+  color: gold;
+  padding: 6px;
+  border-radius: 10px;
+  font-size: 12px;
+  width: 65px;
+  transition: 0.2s;
+}
+
+.footer-menu button:active {
+  transform: scale(0.9);
+  background: #333;
+}
+
+
+/* ===== CREDIT ===== */
+
+.credit {
+  text-align: center;
+  font-size: 11px;
+  color: #aaa;
+  position: fixed;
+  bottom: 0;
+  width: 100%;
+  background: #000;
+  padding: 3px 0;
+}
+
+
+/* ===== FORM BOX (LOGIN & SETTING) ===== */
+
+.login-box {
+  width: 90%;
+  max-width: 300px;
+  margin: 90px auto;
+  background: #111;
+  padding: 20px;
+  border-radius: 18px;
+  text-align: center;
+  box-shadow: 0 0 12px black;
+  border: 2px solid gold;
+}
+
+.login-box h2 {
+  color: gold;
+  margin-bottom: 18px;
+  font-size: 18px;
+}
+
+
+/* ===== INPUT ===== */
+
+.login-box input {
+  width: 100%;
+  padding: 9px;
+  margin-bottom: 12px;
+  border-radius: 10px;
+  border: none;
+  background: #222;
+  color: white;
+  font-size: 14px;
+}
+
+.login-box input:focus {
+  outline: none;
+  background: #333 PG
+}
+
+
+/* ===== BUTTON ===== */
+
+.login-box button {
+  width: 100%;
+  padding: 9px;
+  border: none;
+  border-radius: 10px;
+  background: #003f7f;
+  color: gold;
+  font-weight: bold;
+  font-size: 14px;
+  margin-top: 5px;
+  transition: 0.2s;
+}
+
+.login-box button:active {
+  transform: scale(0.95);
+  background: #00264d;
+}
+
+
+/* ===== INFO TEXT ===== */
+
+#info {
+  color: red;
+  font-size: 12px;
+  margin-top: 8px;
+}
+
+
+/* ===== TABLE BASIC (SIAP NILAI / ABSENSI) ===== */
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 15px;
+  font-size: 12px;
+}
+
+th {
+  background: #003f7f;
+  color: gold;
+  padding: 6px;
+  border: 1px solid #222;
+}
+
+td {
+  padding: 6px;
+  border: 1px solid #222;
+  text-align: center;
+  background: #111;
+}
+
+
+/* ===== BUTTON UMUM ===== */
+
+.btn {
+  background: #003f7f;
+  color: gold;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.btn:active {
+  background: #00264d;
+}
+
+
+/* ===== INPUT UMUM ===== */
+
+.input {
+  width: 100%;
+  padding: 8px;
+  border-radius: 8px;
+  border: none;
+  background: #222;
+  color: white;
+  margin-bottom: 8px;
+}
+
+
+/* ===== RESPONSIVE TAMBAHAN ===== */
+
+@media (min-width:600px) {
+  
+  .grid-menu {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  
+}/* indikator online */
+.status-online {
+  margin: 0 8px;
+  font-weight: bold;
+  color: lime;
+}
+
+/* toast */
+.toast {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: black;
+  color: gold;
+  padding: 10px 20px;
+  border-radius: 10px;
+  display: none;
+  z-index: 999;
+  font-size: 0.8em;
+}

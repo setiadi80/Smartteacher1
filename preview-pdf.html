@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SmartTeacher - Preview PDF</title>
+
+<link rel="stylesheet" href="style.css">
+
+<style>
+body {
+  margin:0;
+  padding:0;
+  font-family:Arial,Helvetica,sans-serif;
+  background:#f5f5f5;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+}
+
+.top-bar {
+  width:100%;
+  max-width:800px;
+  background:#003f7f;
+  color:gold;
+  padding:12px;
+  text-align:center;
+  font-size:18px;
+  font-weight:bold;
+  border-bottom-left-radius:8px;
+  border-bottom-right-radius:8px;
+}
+
+.page {
+  width:100%;
+  max-width:800px;
+  background:white;
+  padding:12px;
+  margin:10px 0;
+  box-sizing:border-box;
+}
+
+.header {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:12px;
+}
+
+.header h1 {
+  margin:0;
+  font-size:18pt;
+  color:#003f7f;
+  font-weight:bold;
+}
+
+.header .datetime {
+  font-size:10pt;
+  color:#555;
+}
+
+.data-table {
+  width:100%;
+  border-collapse:collapse;
+}
+
+.data-table th {
+  background:#0d3f7a;
+  color:gold;
+  padding:6px 8px;
+  border:1px solid #ccc;
+  width:40%;
+}
+
+.data-table td {
+  background:black;
+  color:white;
+  padding:6px 8px;
+  border:1px solid #ccc;
+  width:60%;
+}
+
+.footer {
+  font-size:10pt;
+  color:#555;
+  text-align:center;
+  border-top:1px solid #ccc;
+  padding-top:4px;
+  margin-top:12px;
+}
+
+.button-group {
+  display:flex;
+  gap:6px;
+  margin:12px 0;
+  width:100%;
+  max-width:800px;
+}
+
+.button-group button {
+  flex:1;
+  padding:10px;
+  border:none;
+  border-radius:6px;
+  font-weight:bold;
+  cursor:pointer;
+  background:#003f7f;
+  color:gold;
+  font-size:14px;
+}
+
+.toast {
+  position:fixed;
+  bottom:20px;
+  left:50%;
+  transform:translateX(-50%);
+  background:black;
+  color:gold;
+  padding:8px 16px;
+  border-radius:10px;
+  display:none;
+  z-index:999;
+}
+</style>
+</head>
+
+<body>
+
+<div class="top-bar">SmartTeacher Application</div>
+
+<div class="page">
+  <div class="header">
+    <h1 id="judulPDF">PREVIEW PDF</h1>
+    <div class="datetime" id="datetimePDF"></div>
+  </div>
+  <div id="dataContainer"></div>
+  <div class="footer">SmartTeacher - By tsetiadi</div>
+</div>
+
+<div class="button-group">
+  <button id="exportBtn">⬇ Export PDF</button>
+  <button onclick="history.back()">⬅ Kembali</button>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<!-- jsPDF -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+
+<script>
+// Toast
+function showToast(msg){
+  const t=document.getElementById("toast");
+  t.innerText=msg;
+  t.style.display="block";
+  setTimeout(()=>t.style.display="none",2000);
+}
+
+// Ambil data sesuai type di URL
+function getData(){
+  const biodata = JSON.parse(localStorage.getItem("biodataGuru")) || {};
+  const params = new URLSearchParams(window.location.search);
+  const type = params.get("type");
+
+  if(type === "sekolah") return {title:"DATA SEKOLAH", data:biodata.sekolah||{}};
+  if(type === "guru") return {title:"DATA GURU", data:biodata.guru||{}};
+  if(type === "siswa") {
+    // gabungkan data siswa + wali, tambahkan noUrut
+    const siswa = biodata.siswa||{};
+    const wali = biodata.wali||{};
+    return {
+      title:"DATA SISWA & ORTU",
+      data:{ noUrut:siswa.noUrut||"", ...siswa, ...wali }
+    };
+  }
+  return {title:"Data tidak tersedia!", data:{}};
+}
+
+// Preview Table
+function generateTable(){
+  const {title,data} = getData();
+  document.getElementById("judulPDF").innerText=title;
+  document.getElementById("datetimePDF").innerText=new Date().toLocaleString();
+
+  const container=document.getElementById("dataContainer");
+  container.innerHTML="";
+
+  const table=document.createElement("table");
+  table.className="data-table";
+
+  for(let k in data){
+    const row=document.createElement("tr");
+    const th=document.createElement("th");
+    th.innerText=k.toUpperCase();
+    const td=document.createElement("td");
+    td.innerText=data[k] || "";
+    row.appendChild(th);
+    row.appendChild(td);
+    table.appendChild(row);
+  }
+
+  container.appendChild(table);
+}
+
+// EXPORT PDF
+function exportPDF(){
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'mm', format:'a4' });
+
+  const {title,data} = getData();
+  const rows=[];
+  for(let k in data) rows.push([k.toUpperCase(), data[k]]);
+
+  // Judul PDF
+  doc.setFontSize(16);
+  doc.setFont("times","bold");
+  doc.text(title,105,20,{align:"center"});
+
+  // Tanggal & waktu
+  doc.setFontSize(12);
+  doc.setFont("times","normal");
+  doc.text(new Date().toLocaleString(),180,20,{align:"right"});
+
+  // AutoTable
+  doc.autoTable({
+    startY:30,
+    body:rows,
+    theme:'grid',
+    styles:{
+      font:'times',
+      fontSize:12,
+      textColor:[0,0,0],
+      fillColor:false,
+      cellPadding:3
+    },
+    columnStyles:{
+      0:{cellWidth:60},
+      1:{cellWidth:130}
+    },
+    headStyles:{fillColor:false,textColor:[0,0,0]},
+    showHead:false
+  });
+
+  // Footer
+  doc.setFontSize(10);
+  doc.text("SmartTeacher - By tsetiadi",105,287,{align:"center"});
+
+  doc.save("smartteacher.pdf");
+  showToast("PDF tersimpan");
+}
+
+window.onload=generateTable;
+document.getElementById("exportBtn").addEventListener("click",exportPDF);
+</script>
+
+</body>
+</html>

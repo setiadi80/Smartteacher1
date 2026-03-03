@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SmartTeacher - Preview Siswa</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<style>
+:root{--hitam:#000;--putih:#fff;--emas:#d4af37;--hijau:#00ff00;}
+body{margin:0;font-family:Arial,sans-serif;background:var(--hitam);color:var(--putih);display:flex;flex-direction:column;height:100vh;}
+.header-utama{background:#000;padding:10px;text-align:left;border-bottom:2px solid var(--emas);}
+.header-utama h1{margin:0;color:var(--emas);font-size:18px;}
+#heloUser{font-size:13px;margin-top:3px;}
+.status-bar{font-size:12px;}
+.status-online{color:var(--hijau);}
+.container{flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:8px;}
+select{padding:6px;background:#111;border:1px solid var(--emas);border-radius:4px;color:#fff;font-size:13px;}
+button{padding:6px;border:none;border-radius:4px;font-size:13px;cursor:pointer;font-weight:bold;}
+button:active{transform:scale(0.97);}
+.btn-preview{background:#1565c0;color:#fff;}
+.btn-export{background:#0a74da;color:#fff;}
+.btn-kembali{background:#444;color:#fff;}
+.preview-card{border:1px solid var(--emas);padding:6px;border-radius:4px;font-size:12px;user-select:none;opacity:0;transition:opacity 0.3s;display:flex;flex-direction:column;gap:2px;}
+.preview-row{display:flex;}
+.preview-label{font-weight:bold;text-align:left;min-width:120px;}
+.preview-colon{width:10px;text-align:left;}
+.preview-data{text-align:left;flex:1;}
+.sticky-btn{position:sticky;bottom:0;background:rgba(0,0,0,0.95);padding:6px 0;display:flex;justify-content:center;}
+.sticky-btn .btn-row{width:100%;display:flex;gap:6px;justify-content:space-around;}
+#toast{position:fixed;bottom:60px;left:50%;transform:translateX(-50%);background:var(--emas);color:#000;padding:8px 12px;border-radius:4px;font-size:13px;display:none;z-index:999;}
+</style>
+</head>
+<body>
+
+<header class="header-utama">
+  <h1>SmartTeacher - Preview Siswa</h1>
+  <div id="heloUser">Hello Admin</div>
+  <div class="status-bar">
+    <span id="statusOnline" class="status-online">●</span>
+    <span id="statusText">Offline</span> |
+    <span id="tanggalHariIni"></span> |
+    <span id="jam"></span>
+  </div>
+</header>
+
+<div class="container">
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">
+    <select id="filterNama" onchange="previewData()">
+      <option value="">-- Semua Nama --</option>
+    </select>
+    <button class="btn-preview" onclick="previewData()">🔍 Preview</button>
+  </div>
+
+  <div id="previewList"></div>
+
+  <div class="sticky-btn">
+    <div class="btn-row">
+      <button class="btn-export" onclick="exportPDFSiswa()">📄 Ex PDF</button>
+      <button class="btn-kembali" onclick="window.history.back()">⬅️ Kembali</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ===== UPDATE JAM & STATUS =====
+function updateJam(){
+  const now=new Date();
+  document.getElementById("tanggalHariIni").innerText=now.toLocaleDateString("id-ID");
+  document.getElementById("jam").innerText=now.toLocaleTimeString("id-ID");
+}
+setInterval(updateJam,1000); updateJam();
+
+function updateStatus(){
+  const s=document.getElementById("statusOnline");
+  const t=document.getElementById("statusText");
+  if(navigator.onLine){ s.style.color="lime"; t.innerText="Online"; }
+  else{ s.style.color="red"; t.innerText="Offline"; }
+}
+updateStatus();
+window.addEventListener("online",updateStatus);
+window.addEventListener("offline",updateStatus);
+
+// ===== LOAD DATA GURU =====
+function loadGuru(){
+  const namaGuru=(JSON.parse(localStorage.getItem("biodataGuru"))?.guru?.nama)||"Admin";
+  document.getElementById("heloUser").innerText="Hello "+namaGuru;
+}
+loadGuru();
+
+// ===== INDEXEDDB SISWA =====
+let db;
+const req=indexedDB.open("SmartTeacherDB",1);
+req.onupgradeneeded=e=>{
+  db=e.target.result;
+  if(!db.objectStoreNames.contains("siswa")) db.createObjectStore("siswa",{keyPath:"nis"});
+};
+req.onsuccess=e=>{
+  db=e.target.result;
+  syncLocalStorageToIndexedDB();
+};
+
+function syncLocalStorageToIndexedDB(){
+  const dataSiswa = JSON.parse(localStorage.getItem("siswa")||"[]");
+  const tx=db.transaction("siswa","readwrite");
+  const store=tx.objectStore("siswa");
+  dataSiswa.forEach(s=>store.put(s));
+  tx.oncomplete = ()=>{
+    populateNamaDropdown();
+    previewData();
+  };
+}
+
+// ===== TOAST =====
+function showToast(msg){
+  const t=document.getElementById("toast");
+  t.innerText=msg; t.style.display="block";
+  setTimeout(()=>{ t.style.display="none"; },2000);
+}
+
+// ===== DROPDOWN NAMA =====
+function populateNamaDropdown(){
+  const select=document.getElementById("filterNama");
+  select.innerHTML='<option value="">-- Semua Nama --</option>';
+  const tx=db.transaction("siswa","readonly");
+  const store=tx.objectStore("siswa");
+  const namaSet=new Set();
+  store.openCursor().onsuccess=e=>{
+    const c=e.target.result;
+    if(c){ namaSet.add(c.value.nama); c.continue(); }
+    else{
+      namaSet.forEach(n=>{
+        const opt=document.createElement("option");
+        opt.value=n.toLowerCase();
+        opt.innerText=n;
+        select.appendChild(opt);
+      });
+    }
+  };
+}
+
+// ===== PREVIEW DATA SISWA =====
+function previewData(){
+  const namaFilter=document.getElementById("filterNama").value.toLowerCase();
+  const previewList=document.getElementById("previewList");
+  previewList.innerHTML="";
+
+  const tx=db.transaction("siswa","readonly");
+  tx.objectStore("siswa").openCursor().onsuccess=e=>{
+    const c=e.target.result;
+    if(c){
+      const d=c.value;
+      if(!namaFilter || d.nama.toLowerCase()===namaFilter){
+        const card=document.createElement("div");
+        card.className="preview-card";
+
+        let ttlFormatted="";
+        if(d.ttl){
+          const parts=d.ttl.split("-");
+          if(parts.length===3) ttlFormatted=`${parts[2].padStart(2,'0')}-${parts[1].padStart(2,'0')}-${parts[0]}`;
+        }
+
+        const rows=[
+          ["Nama", d.nama],
+          ["NIS", d.nis],
+          ["Kelas", d.kelas],
+          ["TTL", ttlFormatted],
+          ["Umur", d.umur],
+          ["TB", d.tb],
+          ["BB", d.bb],
+          ["Alamat", d.alamat],
+          ["Ayah", d.ayah],
+          ["Ibu", d.ibu],
+          ["Alamat Ortu", d.alamatOrtu],
+          ["HP", d.hp]
+        ];
+
+        rows.forEach(([label,value])=>{
+          const row=document.createElement("div");
+          row.className="preview-row";
+          const lbl=document.createElement("div");
+          lbl.className="preview-label";
+          lbl.innerText=label;
+          const colon=document.createElement("div");
+          colon.className="preview-colon";
+          colon.innerText=":";
+          const data=document.createElement("div");
+          data.className="preview-data";
+          data.innerText=value;
+          row.appendChild(lbl);
+          row.appendChild(colon);
+          row.appendChild(data);
+          card.appendChild(row);
+        });
+
+        previewList.appendChild(card);
+        requestAnimationFrame(()=>{card.style.opacity=1;});
+      }
+      c.continue();
+    }
+  };
+}
+window.previewData=previewData;
+
+// ===== EXPORT PDF SOP2 =====
+function exportPDFSiswa(){
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  const pageHeight = 297;
+  let y = 40;
+  const cards = document.querySelectorAll("#previewList .preview-card");
+  if(cards.length === 0){ showToast("Tidak ada data untuk PDF"); return; }
+
+  function addHeader(){
+    doc.setFontSize(22);
+    doc.setTextColor(0,51,102);
+    doc.setFont("helvetica","bold");
+    doc.text("SmartTeacher Application",105,15,{align:"center"});
+    doc.setFontSize(16);
+    doc.setFont("helvetica","normal");
+    doc.setTextColor(0);
+    doc.text("DATA SISWA",105,25,{align:"center"});
+    doc.setLineWidth(0.7);
+    doc.setDrawColor(0,51,102);
+    doc.line(10,28,200,28);
+  }
+
+  function addFooter(pageNum){
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text("SmartTeacher - by tsetiadi @2026",105,pageHeight-10,{align:"center"});
+    doc.text(`Halaman ${pageNum}`,200,pageHeight-10,{align:"right"});
+  }
+
+  let pageNum = 1;
+  addHeader();
+
+  cards.forEach(card=>{
+    const rows = card.querySelectorAll(".preview-row");
+    rows.forEach(row=>{
+      const label = row.querySelector(".preview-label").innerText;
+      const data = row.querySelector(".preview-data").innerText;
+
+      doc.setFont("helvetica","bold"); doc.setFontSize(12); doc.setTextColor(0,51,102);
+      doc.text(label,12,y);
+
+      doc.setFont("helvetica","normal"); doc.setTextColor(0);
+      doc.text(": "+data,50,y);
+
+      y += 7;
+      if(y > pageHeight-25){
+        addFooter(pageNum);
+        doc.addPage();
+        pageNum++;
+        y = 40;
+        addHeader();
+      }
+    });
+    y += 4;
+  });
+
+  addFooter(pageNum);
+  const now = new Date();
+  const tgl = `${("0"+now.getDate()).slice(-2)}${("0"+(now.getMonth()+1)).slice(-2)}${now.getFullYear()}`;
+  doc.save(`DataSiswa-${tgl}.pdf`);
+  showToast("PDF SOP2 berhasil dibuat");
+}
+window.exportPDFSiswa = exportPDFSiswa;
+
+</script>
+</body>
+</html>

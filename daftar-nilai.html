@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SmartTeacher - Daftar Nilai</title>
+
+<!-- JSPDF -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+
+<style>
+:root{
+  --hitam:#000;
+  --putih:#fff;
+  --biru:#1565c0;
+  --emas:#d4af37;
+  --hijau:#0f0;
+}
+body{margin:0;font-family:Arial,sans-serif;background:var(--hitam);color:var(--putih);}
+.header-utama{
+  background:var(--hitam); padding:10px; text-align:center; border-bottom:2px solid var(--emas);
+}
+.header-utama h1{margin:0;color:var(--emas);font-size:18px;}
+.header-utama #heloUser{font-size:14px;color:#00ffdd;margin-top:2px;}
+.status-bar{font-size:12px;margin-top:2px;}
+.status-online{color:var(--hijau);font-weight:bold;}
+.container{padding:10px; display:flex; flex-direction:column; gap:8px;}
+.row{display:flex;gap:8px;flex-wrap:wrap;}
+.row select,input{flex:1;padding:6px;background:#111;color:var(--putih);border:1px solid var(--emas);border-radius:4px;font-size:13px;}
+textarea{width:100%;padding:6px;background:#111;color:var(--putih);border:1px solid var(--emas);border-radius:4px;resize:none;min-height:60px;font-size:13px;}
+.btn-row{display:flex;gap:6px;flex-wrap:wrap;}
+button{flex:1;padding:6px;font-size:12px;border:none;border-radius:4px;cursor:pointer;background:var(--biru);color:var(--putih);}
+.btn-emas{background:var(--emas);color:var(--hitam);}
+.card{background:#111;border:1px solid var(--emas);padding:8px;border-radius:6px;position:relative;}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--biru);color:#fff;padding:10px 18px;border-radius:6px;font-size:13px;opacity:0;transition:0.3s;z-index:999;}
+.toast.show{opacity:1;}
+footer{padding:10px;text-align:center;border-top:2px solid var(--emas);}
+footer button{max-width:150px;}
+</style>
+</head>
+<body>
+
+<header class="header-utama">
+  <h1>SmartTeacher - Daftar Nilai</h1>
+  <div id="heloUser">Helo: Admin</div>
+  <div class="status-bar">
+    <span id="statusOnline" class="status-online">●</span>
+    <span id="statusText">Online</span> |
+    <span id="tanggalHariIni">...</span> |
+    <span id="jam">...</span>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- Input Data Nilai -->
+  <div class="row">
+    <select id="siswaSelect"><option value="">-- Pilih Siswa --</option></select>
+    <select id="mapelSelect"><option value="">-- Pilih Mapel --</option></select>
+    <select id="jenisNilai"><option value="">-- Pilih Jenis Nilai --</option>
+      <option value="Harian">Harian</option>
+      <option value="UTS">UTS</option>
+      <option value="UAS">UAS</option>
+    </select>
+  </div>
+  <div class="row">
+    <input type="date" id="tglDari" placeholder="Tgl Dari">
+    <input type="date" id="tglSampai" placeholder="Tgl Sampai">
+    <input type="number" id="nilaiInput" placeholder="Nilai" min="0" max="100">
+  </div>
+  <div class="btn-row">
+    <button onclick="simpanNilai()">Simpan</button>
+    <button onclick="backupNilai()">Backup</button>
+    <button onclick="restoreNilai()">Restore</button>
+    <button onclick="resetForm()">Reset</button>
+    <button class="btn-emas" onclick="exportPDF()">Ex PDF</button>
+  </div>
+
+  <!-- Filter Data -->
+  <div class="row">
+    <select id="filterSiswa" onchange="tampilData()"><option value="">Filter Siswa</option></select>
+    <select id="filterMapel" onchange="tampilData()"><option value="">Filter Mapel</option></select>
+    <select id="filterJenis" onchange="tampilData()"><option value="">Filter Jenis</option>
+      <option value="Harian">Harian</option>
+      <option value="UTS">UTS</option>
+      <option value="UAS">UAS</option>
+    </select>
+  </div>
+
+  <div id="dataList"></div>
+</div>
+
+<footer>
+  <button onclick="window.history.back()">Kembali</button>
+</footer>
+
+<div id="toast" class="toast"></div>
+
+<script>
+// ===== User & Status =====
+const biodataGuru = JSON.parse(localStorage.getItem("biodataGuru"))||{};
+const guruNama = biodataGuru.guru?.nama||"Admin";
+document.getElementById("heloUser").innerText = "Helo: "+guruNama;
+
+function updateJam(){
+  const now=new Date();
+  document.getElementById("tanggalHariIni").innerText=now.toLocaleDateString("id-ID",{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  document.getElementById("jam").innerText=now.toLocaleTimeString("id-ID");
+}
+setInterval(updateJam,1000); updateJam();
+
+function updateStatus(){
+  const el=document.getElementById("statusOnline");
+  const txt=document.getElementById("statusText");
+  if(navigator.onLine){el.style.color="lime"; txt.innerText="Online";}
+  else{el.style.color="red"; txt.innerText="Offline";}
+}
+setInterval(updateStatus,5000); updateStatus();
+
+function showToast(msg){ const t=document.getElementById("toast"); t.innerText=msg; t.classList.add("show"); setTimeout(()=>t.classList.remove("show"),2000); }
+
+// ===== Load Siswa & Mapel =====
+const siswaData = JSON.parse(localStorage.getItem("dataSiswa")) || [];
+const mapelList = ["Matematika","Bahasa Indonesia","IPA","IPS"];
+
+const siswaSelect = document.getElementById("siswaSelect");
+const filterSiswa = document.getElementById("filterSiswa");
+siswaData.forEach(s=>{
+  const opt1=document.createElement("option"); opt1.value=s.id; opt1.text=s.nama; siswaSelect.appendChild(opt1);
+  const opt2=document.createElement("option"); opt2.value=s.id; opt2.text=s.nama; filterSiswa.appendChild(opt2);
+});
+
+const mapelSelect = document.getElementById("mapelSelect");
+const filterMapel = document.getElementById("filterMapel");
+mapelList.forEach(m=>{
+  const opt1=document.createElement("option"); opt1.value=m; opt1.text=m; mapelSelect.appendChild(opt1);
+  const opt2=document.createElement("option"); opt2.value=m; opt2.text=m; filterMapel.appendChild(opt2);
+});
+
+// ===== Data Nilai =====
+let dataNilai = JSON.parse(localStorage.getItem("dataNilai"))||[];
+
+// ===== Restore Otomatis dari backup jika ada =====
+const backup = localStorage.getItem("backupNilai");
+if(backup){dataNilai=JSON.parse(backup); localStorage.setItem("dataNilai", backup); showToast("Restore otomatis dari backup");}
+
+// ===== Simpan Nilai =====
+function simpanNilai(){
+  const siswaId=siswaSelect.value;
+  const mapel=mapelSelect.value;
+  const jenis=document.getElementById("jenisNilai").value;
+  const tglD=tglDari.value; const tglS=tglSampai.value;
+  const nilai=parseFloat(document.getElementById("nilaiInput").value);
+  if(!siswaId||!mapel||!jenis||!tglD||!tglS||isNaN(nilai)){showToast("Lengkapi semua field!"); return;}
+  if(tglD>tglS){showToast("Periode tidak valid!"); return;}
+  dataNilai.push({id:Date.now(),siswaId,mapel,jenis,tglD,tglS,nilai});
+  localStorage.setItem("dataNilai",JSON.stringify(dataNilai));
+  backupNilai(); // otomatis backup setiap simpan
+  resetForm(); tampilData(); showToast("Nilai tersimpan");
+}
+
+// ===== Tampilkan Data =====
+function tampilData(){
+  const fsiswa=filterSiswa.value;
+  const fmapel=filterMapel.value;
+  const fjenis=document.getElementById("filterJenis").value;
+  dataList.innerHTML="";
+  const filtered=dataNilai.filter(d=>
+    (!fsiswa||d.siswaId===fsiswa)&&(!fmapel||d.mapel===fmapel)&&(!fjenis||d.jenis===fjenis)
+  );
+
+  filtered.forEach((d,i)=>{
+    const sNama=siswaData.find(s=>s.id===d.siswaId)?.nama || "Siswa";
+    const div=document.createElement("div"); div.className="card";
+    div.innerHTML=`<b>${sNama} | ${d.mapel} | ${d.jenis}</b><br>
+      Periode: ${d.tglD} s/d ${d.tglS}<br>Nilai: ${d.nilai}`;
+
+    let timer=null; let longPress=false;
+    const start=()=>{ longPress=false; timer=setTimeout(()=>{longPress=true; if(confirm("Hapus data ini?")){dataNilai.splice(i,1); localStorage.setItem("dataNilai",JSON.stringify(dataNilai)); tampilData(); showToast("Data dihapus");}},800);};
+    const cancel=()=>{clearTimeout(timer);}
+    div.addEventListener("mousedown",start);
+    div.addEventListener("touchstart",start);
+    div.addEventListener("mouseup",cancel);
+    div.addEventListener("mouseleave",cancel);
+    div.addEventListener("touchend",cancel);
+    div.addEventListener("click",()=>{if(longPress) return; siswaSelect.value=d.siswaId; mapelSelect.value=d.mapel;
+      document.getElementById("jenisNilai").value=d.jenis; tglDari.value=d.tglD; tglSampai.value=d.tglS; document.getElementById("nilaiInput").value=d.nilai; showToast("Mode edit");});
+    dataList.appendChild(div);
+  });
+}
+
+// ===== Reset Form =====
+function resetForm(){siswaSelect.value=""; mapelSelect.value=""; document.getElementById("jenisNilai").value=""; tglDari.value=""; tglSampai.value=""; document.getElementById("nilaiInput").value="";}
+
+// ===== Backup / Restore Manual =====
+function backupNilai(){localStorage.setItem("backupNilai",JSON.stringify(dataNilai)); showToast("Backup berhasil");}
+function restoreNilai(){const b=localStorage.getItem("backupNilai"); if(b){dataNilai=JSON.parse(b); localStorage.setItem("dataNilai",b); tampilData(); showToast("Restore berhasil");}}
+
+// ===== Export PDF =====
+function exportPDF(){
+  if(dataNilai.length===0){showToast("Tidak ada data untuk export"); return;}
+  const {jsPDF} = window.jspdf; const doc=new jsPDF();
+  doc.setFontSize(16); doc.text("Daftar Nilai",105,15,{align:"center"});
+  doc.setFontSize(11); doc.text("Guru: "+guruNama,14,25);
+  doc.text("Tanggal Export: "+new Date().toLocaleString("id-ID"),14,32);
+
+  let rows=[], siswaMap={}; siswaData.forEach(s=>siswaMap[s.id]=s.nama);
+  dataNilai.forEach((d,i)=>{rows.push([i+1,siswaMap[d.siswaId]||"Siswa",d.mapel,d.jenis,d.tglD+" s/d "+d.tglS,d.nilai]);});
+  doc.autoTable({startY:40,head:[["No","Siswa","Mapel","Jenis","Periode","Nilai"]],body:rows,theme:"grid"});
+  doc.save("daftar-nilai.pdf"); showToast("PDF berhasil dibuat");
+}
+
+// ===== Inisialisasi =====
+tampilData();
+</script>
+</body>
+</html>

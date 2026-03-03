@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SmartTeacher Application</title>
+
+<style>
+:root{
+  --hitam:#000; --putih:#fff; --biru:#1565c0; --emas:#d4af37;
+}
+body {margin:0;font-family:Arial, Helvetica, sans-serif;background:#000;color:white;}
+.header-utama {background: linear-gradient(90deg,#003f7f,#0059b3);padding:12px 10px;text-align:center;box-shadow:0 4px 12px rgba(0,0,0,0.6);color:#ffd700;border-bottom-left-radius:12px;border-bottom-right-radius:12px;position:sticky;top:0;z-index:999;}
+.header-utama h1 {margin:0;font-size:20px;font-weight:bold;letter-spacing:1px;}
+.user-info {margin-top:6px;font-size:14px;color:#fff;}
+.user-info span {font-weight:bold;color:#00ffdd;font-size:16px;}
+.status-container {margin-top:4px;font-size:11px;color:#fff;display:flex;justify-content:center;gap:6px;align-items:center;}
+.status-online {font-weight:bold;}
+.grid-menu {display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:8px;}
+.menu {text-decoration:none;color:gold;text-align:center;padding:14px 8px;border-radius:12px;font-size:16px;background:#111;box-shadow:0 0 6px black;transition:0.2s;}
+.menu:active {transform:scale(0.95);}
+.menu p {font-size:12px;margin-top:4px;}
+.credit {text-align:center;font-size:12px;color:#aaa;padding:6px 0;border-top:1px solid #444;background:#111;position:fixed;bottom:0;width:100%;box-shadow:0 -2px 6px black;}
+.toast {position:fixed;bottom:100px;left:50%;transform:translateX(-50%);background:black;color:gold;padding:8px 16px;border-radius:8px;display:none;z-index:999;font-size:0.8em;}
+</style>
+</head>
+<body>
+
+<header class="header-utama">
+  <h1>SmartTeacher Application</h1>
+  <div class="user-info">Halo, <span id="namaUser">...</span></div>
+  <div class="status-container">
+    <span id="statusOnline" class="status-online">●</span>
+    <span id="statusText">...</span> |
+    <span id="tanggalHariIni">...</span> |
+    <span id="jam">...</span>
+  </div>
+</header>
+
+<main class="grid-menu">
+  <a href="cp.html" class="menu biru">📘<p>CP</p></a>
+  <a href="atp.html" class="menu emas">📑<p>ATP</p></a>
+  <a href="modul-ajar.html" class="menu biru">📚<p>Modul Ajar</p></a>
+  <a href="daftar-nilai.html" class="menu emas">📝<p>Daftar Nilai</p></a>
+  <a href="kalender.html" class="menu biru">📅<p>Kalender</p></a>
+  <a href="mata-pelajaran.html" class="menu emas">📖<p>Mata Pelajaran</p></a>
+  <a href="RPP.html" class="menu biru">📂<p>RPP</p></a>
+  <a href="absensi.html" class="menu emas">✅<p>Absensi</p></a>
+  <a href="buku-tamu.html" class="menu biru">👥<p>Buku Tamu</p></a>
+  <a href="analisis.html" class="menu emas">📊<p>Analisis</p></a>
+  <a href="prota.html" class="menu biru">📖<p>Prota</p></a>
+  <a href="promes.html" class="menu emas">📂<p>Promes</p></a>
+
+  <a href="#" id="btnSetting" class="menu biru">⚙️<p>Setting</p></a>
+  <a href="#" id="btnLogout" class="menu emas">🚪<p>Logout</p></a>
+</main>
+
+<div class="credit">SmartTeacher Application - by tsetiadi @2026</div>
+<div id="toast" class="toast"></div>
+
+<script>
+// ====== JAM & TANGGAL ======
+function updateJam(){
+  const now=new Date();
+  document.getElementById("jam").innerText = now.toLocaleTimeString("id-ID");
+  document.getElementById("tanggalHariIni").innerText = now.toLocaleDateString("id-ID",{
+    weekday:"long", day:"numeric", month:"long", year:"numeric"
+  });
+}
+updateJam();
+setInterval(updateJam,1000);
+
+// ====== STATUS ONLINE/OFFLINE ======
+function updateStatus(){
+  const el = document.getElementById("statusOnline");
+  const txt = document.getElementById("statusText");
+  if(navigator.onLine){ el.style.color="lime"; txt.innerText="Online"; }
+  else{ el.style.color="red"; txt.innerText="Offline"; }
+}
+updateStatus();
+window.addEventListener("online",updateStatus);
+window.addEventListener("offline",updateStatus);
+
+// ====== SESSION ======
+const SESSION_TIME = 30*60*1000;
+document.addEventListener("DOMContentLoaded", ()=>{
+  cekSession();
+});
+
+// ====== CEK SESSION ======
+function cekSession(){
+  let session=null;
+  try{ session=JSON.parse(localStorage.getItem("sessionLogin")); }
+  catch(e){ localStorage.removeItem("sessionLogin"); }
+  if(!session || !session.expired || Date.now()>session.expired){
+    window.location.href="login.html";
+    return;
+  }
+  session.expired = Date.now() + SESSION_TIME;
+  localStorage.setItem("sessionLogin", JSON.stringify(session));
+
+  // Tampilkan username dari biodata
+  let biodata = JSON.parse(localStorage.getItem("biodataGuru")) || {};
+  let nama = biodata.guru?.nama || "Admin Guru";
+  document.getElementById("namaUser").innerText = nama;
+}
+
+// ====== TOMBOL AKTIF ======
+document.getElementById("btnSetting").addEventListener("click", function(){
+  window.location.href="setting.html";
+});
+document.getElementById("btnLogout").addEventListener("click", function(){
+  localStorage.removeItem("sessionLogin");
+  window.location.href="login.html";
+});
+
+// ====== TOAST ======
+function showToast(msg){
+  const toast = document.getElementById("toast");
+  toast.innerText = msg;
+  toast.style.display = "block";
+  setTimeout(()=>{ toast.style.display="none"; },2000);
+}
+</script>
+
+</body>
+</html>
